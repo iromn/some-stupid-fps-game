@@ -1,0 +1,17 @@
+{
+  "name": "browser-fps-multiplayer",
+  "version": "1.0.0",
+  "description": "Simple browser-based multiplayer FPS",
+  "main": "server/server.js",
+  "scripts": {
+    "start": "node server/server.js",
+    "dev": "node server/server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.21.2",
+    "socket.io": "^4.8.1"
+  }
+}
