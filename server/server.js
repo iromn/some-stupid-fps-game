@@ -18,7 +18,13 @@ const PLAYER_COLORS = [
   0x00ff00, // Green
   0xffff00, // Yellow
   0x00ffff, // Cyan
-  0xff00ff  // Magenta
+  0xff00ff, // Magenta
+  0xff8000, // Orange
+  0x800080, // Purple
+  0x008080, // Teal
+  0xffc0cb, // Pink
+  0x80ff00, // Lime
+  0x4b0082  // Indigo
 ];
 
 io.on('connection', (socket) => {
@@ -115,7 +121,7 @@ io.on('connection', (socket) => {
         target.health -= 10;
 
         // Broadcast Hit in Room
-        io.to(p.room).emit('playerHit', { id: targetId, health: target.health });
+        io.to(p.room).emit('playerHit', { id: targetId, health: target.health, attackerId: socket.id });
 
         // Death Logic
         if (target.health <= 0) {
