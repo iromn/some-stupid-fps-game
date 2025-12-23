@@ -21,13 +21,18 @@ class CombatManager {
             }
         };
 
+        // Check if player died
         if (target.health <= 0) {
-            // Kill
+            // Increment attacker's kills
+            const attackerKills = playerManager.incrementKills(shooterId);
+
+            // Kill event with kill count
             const killResult = {
                 type: 'kill',
                 data: {
                     victimId: targetId,
                     killerId: shooterId,
+                    killerKills: attackerKills,
                     room: shooter.room
                 }
             };

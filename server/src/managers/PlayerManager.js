@@ -13,7 +13,8 @@ class PlayerManager {
             y: 2,
             z: 0,
             rotation: 0,
-            health: 100
+            health: 100,
+            kills: 0
         };
         return this.players[id];
     }
@@ -38,6 +39,15 @@ class PlayerManager {
             p.z = data.z;
             p.rotation = data.rotation;
         }
+    }
+
+    incrementKills(id) {
+        const p = this.players[id];
+        if (p) {
+            p.kills++;
+            return p.kills;
+        }
+        return 0;
     }
 }
 
