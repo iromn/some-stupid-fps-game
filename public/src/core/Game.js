@@ -45,7 +45,11 @@ export class Game {
     }
 
     _initUIEvents() {
-        this.ui.onPlay((name, room) => {
+        this.ui.onCreateLobby((name, room) => {
+            this.network.emit('joinGame', { roomCode: room, name: name });
+        });
+
+        this.ui.onJoinLobby((name, room) => {
             this.network.emit('joinGame', { roomCode: room, name: name });
         });
     }
@@ -68,26 +72,51 @@ export class Game {
             this.player.setJoined(true);
             this.player.setPosition(data.x || 0, 2, data.z || 0);
             this.ui.showGameUI(data.roomCode);
+            // Initialize local player state for UI lists
+            this.allPlayers = {};
         });
 
         this.network.on('currentPlayers', (players) => {
-            Object.keys(players).forEach(id => {
-                if (id !== this.network.id) {
-                    this.entityManager.addPlayer(players[id]);
+            this.allPlayers = players; // Store for UI
+
+            Object.values(players).forEach(p => {
+                if (p.playerId !== this.network.socket.id) {
+                    this.entityManager.addPlayer(p); // Add to game world
                 }
             });
+
+            // Update UI Lists
+            this.ui.updatePlayerList(this.allPlayers);
+            this.ui.updateLeaderboard(this.allPlayers);
         });
 
         this.network.on('newPlayer', (p) => {
+            this.allPlayers[p.playerId] = p; // Update local state
             this.entityManager.addPlayer(p);
+
+            // Update UI
+            this.ui.addPlayerToList(p);
+            this.ui.updateLeaderboard(this.allPlayers);
         });
 
         this.network.on('playerMoved', (p) => {
             this.entityManager.updatePlayer(p);
+            if (this.allPlayers && this.allPlayers[p.playerId]) {
+                // Update local state pos/rot/health if needed
+                this.allPlayers[p.playerId].x = p.x;
+                this.allPlayers[p.playerId].y = p.y;
+                this.allPlayers[p.playerId].z = p.z;
+                this.allPlayers[p.playerId].rotation = p.rotation;
+            }
         });
 
         this.network.on('userDisconnected', (id) => {
+            if (this.allPlayers) delete this.allPlayers[id];
             this.entityManager.removePlayer(id);
+
+            // Update UI
+            this.ui.removePlayerFromList(id);
+            this.ui.updateLeaderboard(this.allPlayers || {});
         });
 
         this.network.on('playerHit', (data) => {
