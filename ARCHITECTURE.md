@@ -97,7 +97,78 @@
 ### Development Tools
 ```bash
 # Current Setup
-- No build process (native ES6 modules)
+- ES6 modules (native browser support)
+- No build process required
+- CDN-based dependencies (Three.js, Socket.io)
+
+# Future Plans
+- Vite/Webpack for bundling
+- TypeScript for type safety
+- ESLint for code quality
+- Nodemon for auto-restart
+```
+
+---
+
+## Modular Architecture
+
+### Client-Side Module Organization
+
+The client code is organized into logical modules to reduce merge conflicts and improve maintainability:
+
+```
+public/src/
+├── main.js              # Entry point, initializes Game
+├── core/                # Core game systems
+│   ├── Game.js          # Main orchestrator, event coordination
+│   ├── Input.js         # Keyboard input state management
+│   └── Audio.js         # Web Audio API wrapper
+├── graphics/            # Rendering and visual effects
+│   ├── Renderer.js      # Three.js scene, camera, lights
+│   ├── Textures.js      # Procedural texture generation
+│   └── Effects.js       # Bullet tracers, particles
+├── world/               # Game world and physics
+│   ├── Level.js         # Map generation, walls, obstacles
+│   └── Physics.js       # Collision detection, movement resolution
+├── entities/            # Player and character systems
+│   ├── Player.js        # Local player controller
+│   ├── RemotePlayer.js  # Network player representation
+│   ├── Character.js     # Procedural character models
+│   └── EntityManager.js # Entity lifecycle management
+├── network/             # Network communication
+│   └── Network.js       # Socket.io client wrapper
+└── ui/                  # User interface
+    ├── UIManager.js     # HUD, menus, DOM manipulation
+    └── NameTag.js       # Player name sprites
+```
+
+**Module Responsibilities:**
+- **Core**: Game loop, input handling, audio playback
+- **Graphics**: Rendering pipeline, visual assets
+- **World**: Environment, physics simulation
+- **Entities**: Player logic, character models
+- **Network**: Server communication
+- **UI**: User interface, HUD elements
+
+### Server-Side Module Organization
+
+```
+server/
+├── server.js            # Entry point, Socket.io setup
+└── src/
+    ├── managers/        # Game logic managers
+    │   ├── RoomManager.js    # Room creation, joining, cleanup
+    │   ├── PlayerManager.js  # Player state (position, health)
+    │   └── CombatManager.js  # Hit detection, damage, respawn
+    └── utils/
+        └── Constants.js      # Shared game constants
+```
+
+**Benefits of Modular Structure:**
+- **Reduced Conflicts**: Team members can work on different modules simultaneously
+- **Easier Testing**: Each module can be tested independently
+- **Better Organization**: Related code is grouped together
+- **Scalability**: New features can be added as new modules
 - No transpilation needed
 - CDN-based dependencies (unpkg.com)
 

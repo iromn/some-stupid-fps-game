@@ -35,7 +35,7 @@ cd some-stupid-fps-game
 npm install
 
 # 3. Start the server
-node server.js
+node server/server.js
 
 # 4. Open browser
 # Navigate to http://localhost:3000
@@ -44,12 +44,42 @@ node server.js
 ### Project Structure
 ```
 some-stupid-fps-game/
-├── server.js           # Backend logic (Socket.io server)
-├── package.json        # Dependencies and scripts
-├── package-lock.json   # Locked dependency versions
-└── public/
-    ├── index.html      # Game UI and HTML structure
-    └── game.js         # Client-side game logic (Three.js)
+├── server/
+│   ├── server.js              # Server entry point
+│   └── src/
+│       ├── managers/
+│       │   ├── RoomManager.js      # Room creation & joining
+│       │   ├── PlayerManager.js    # Player state management
+│       │   └── CombatManager.js    # Combat logic
+│       └── utils/
+│           └── Constants.js        # Shared constants
+├── public/
+│   ├── index.html             # Game UI and HTML structure
+│   └── src/
+│       ├── main.js            # Client entry point
+│       ├── core/
+│       │   ├── Game.js        # Main game orchestrator
+│       │   ├── Input.js       # Keyboard input handling
+│       │   └── Audio.js       # Sound effects
+│       ├── graphics/
+│       │   ├── Renderer.js    # Three.js scene setup
+│       │   ├── Textures.js    # Procedural textures
+│       │   └── Effects.js     # Visual effects
+│       ├── world/
+│       │   ├── Level.js       # Map & environment
+│       │   └── Physics.js     # Collision detection
+│       ├── entities/
+│       │   ├── Player.js      # Local player
+│       │   ├── RemotePlayer.js # Other players
+│       │   ├── Character.js   # Character models
+│       │   └── EntityManager.js # Entity tracking
+│       ├── network/
+│       │   └── Network.js     # Socket.io wrapper
+│       └── ui/
+│           ├── UIManager.js   # HUD & menus
+│           └── NameTag.js     # Player name tags
+├── package.json
+└── Documentation (.md files)
 ```
 
 ### Understanding the Codebase
@@ -57,9 +87,11 @@ some-stupid-fps-game/
 **Read in this order:**
 1. `ARCHITECTURE.md` - High-level overview
 2. `SYSTEMS.md` - Detailed system documentation
-3. `server.js` - Server logic (~150 lines)
-4. `public/game.js` - Client logic (~800 lines)
-5. `public/index.html` - UI markup (~100 lines)
+3. `server/server.js` - Server entry point (~70 lines)
+4. `server/src/managers/` - Server logic modules
+5. `public/src/main.js` - Client entry point
+6. `public/src/core/Game.js` - Client orchestrator
+7. `public/index.html` - UI markup
 
 ---
 
@@ -71,7 +103,7 @@ some-stupid-fps-game/
 
 **Step 1: Add the sound generator**
 ```javascript
-// In game.js, inside SimpleAudio class
+// In public/src/core/Audio.js, inside Audio class
 
 playReload() {
   if (this.ctx.state === 'suspended') this.ctx.resume();
@@ -106,12 +138,12 @@ playReload() {
 }
 ```
 
-**Step 2: Call it when reloading**
+**Step 2: Call it in Player.js**
 ```javascript
-// In your reload logic (future feature)
+// In public/src/entities/Player.js, add to _initInputEvents()
 document.addEventListener('keydown', (e) => {
   if (e.code === 'KeyR' && canReload) {
-    sfx.playReload();
+    this.audio.playReload();
     // ... reload logic
   }
 });
@@ -130,9 +162,9 @@ document.addEventListener('keydown', (e) => {
 
 **Step 1: Add texture generator**
 ```javascript
-// In game.js, inside createPixelTexture function
+// In public/src/graphics/Textures.js, inside createPixelTexture function
 
-function createPixelTexture(type) {
+export function createPixelTexture(type) {
   const canvas = document.createElement('canvas');
   canvas.width = 64;
   canvas.height = 64;
@@ -164,6 +196,21 @@ function createPixelTexture(type) {
 
   // ... rest of function
 }
+
+// Export the new texture
+export const woodTex = createPixelTexture('wood');
+```
+
+**Step 2: Use it in Level.js**
+```javascript
+// In public/src/world/Level.js
+import { grassTex, stoneTex, dirtTex, woodTex } from '../graphics/Textures.js';
+
+// Create a wooden crate
+const crateMat = new THREE.MeshStandardMaterial({ map: woodTex });
+const crate = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), crateMat);
+crate.position.set(5, 1, 5);
+this.scene.add(crate);
 ```
 
 **Step 2: Create the texture**

@@ -21,6 +21,7 @@
 - **Frontend**: Three.js (3D rendering), Socket.io-client (networking)
 - **Backend**: Node.js, Express, Socket.io
 - **Style**: Minecraft-inspired pixel art aesthetic with procedural textures
+- **Architecture**: Modular ES6 modules (see ARCHITECTURE.md for details)
 
 ### Current Feature Set (v0.1)
 - ✅ Lobby system with room codes (up to 6 players)
@@ -31,6 +32,9 @@
 - ✅ Death and respawn mechanics
 - ✅ Procedurally generated textures (grass, stone, dirt)
 - ✅ Basic audio system (shoot, hit, death sounds)
+- ✅ Modular codebase for team collaboration
+
+> **Note**: The codebase has been refactored into modular components. Client code is in `public/src/` and server code is in `server/src/`. See ARCHITECTURE.md for the full module structure.
 
 ---
 
