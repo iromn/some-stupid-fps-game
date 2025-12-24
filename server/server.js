@@ -21,9 +21,15 @@ io.on('connection', (socket) => {
     if (player) {
       // Success
       const roomPlayers = roomManager.getRoomPlayers(roomCode);
-      socket.emit('gameJoined', { roomCode, assignedColor: player.color, x: player.x, z: player.z });
+      const hostId = roomManager.getHost(roomCode);
+
+      socket.emit('gameJoined', { roomCode, assignedColor: player.color, x: player.x, z: player.z, hostId });
       socket.emit('currentPlayers', roomPlayers);
       socket.to(roomCode).emit('newPlayer', player);
+
+      // Phase 8: Update Waiting Room (include hostId)
+      io.to(roomCode).emit('roomUpdate', { players: roomManager.getRoomPlayers(roomCode), hostId });
+
       console.log(`User ${name} joined room ${roomCode}`);
     }
   });
@@ -32,7 +38,36 @@ io.on('connection', (socket) => {
     const roomCode = roomManager.leaveRoom(socket);
     if (roomCode) {
       io.to(roomCode).emit('userDisconnected', socket.id);
+
+      // Phase 8: Update Waiting Room UI for others (with new host if changed)
+      const roomPlayers = roomManager.getRoomPlayers(roomCode);
+      const hostId = roomManager.getHost(roomCode);
+      io.to(roomCode).emit('roomUpdate', { players: roomPlayers, hostId });
+
       console.log(`User disconnected from room ${roomCode}`);
+    }
+  });
+
+  // Phase 8: Start Game (Host Only)
+  socket.on('startGame', () => {
+    const p = playerManager.getPlayer(socket.id);
+    if (p) {
+      const result = roomManager.startGame(p.room, socket.id);
+      if (result.success) {
+        // Broadcast Countdown
+        const countdownTime = 3000; // 3 seconds
+        const startTime = Date.now() + countdownTime + 500; // +500ms buffer
+
+        io.to(p.room).emit('countdownStart', { startTime });
+
+        // Server-side State Transition
+        setTimeout(() => {
+          roomManager.setPlaying(p.room);
+          io.to(p.room).emit('gameStart'); // Unlock controls
+        }, countdownTime + 500);
+      } else {
+        socket.emit('gameError', result.error);
+      }
     }
   });
 
