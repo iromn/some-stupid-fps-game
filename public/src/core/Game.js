@@ -52,6 +52,14 @@ export class Game {
         this.ui.onJoinLobby((name, room) => {
             this.network.emit('joinGame', { roomCode: room, name: name });
         });
+
+        // Phase 8: Waiting Room Events
+        this.ui.onStartGame(() => {
+            this.network.emit('startGame');
+        });
+        this.ui.onLeaveLobby(() => {
+            location.reload(); // Simple leave
+        });
     }
 
     _initNetworkEvents() {
@@ -71,10 +79,34 @@ export class Game {
         this.network.on('gameJoined', (data) => {
             this.player.setJoined(true);
             this.player.setPosition(data.x || 0, 2, data.z || 0);
-            this.ui.showGameUI(data.roomCode);
+
+            // Phase 8: Show Waiting Room instead of Game UI immediately
+            this.currentHostId = data.hostId; // Store for later
+            this.ui.showWaitingRoom(data.roomCode, {}, data.hostId, this.network.socket.id);
+
             // Initialize local player state for UI lists
             this.allPlayers = {};
+            this.gameActive = false; // Lock controls
         });
+
+        // Phase 8: Room Update
+        this.network.on('roomUpdate', (data) => {
+            if (data.hostId) this.currentHostId = data.hostId; // Update if host changed
+            this.ui.updateWaitingRoom(data.players, data.hostId);
+        });
+
+        // Phase 8: Countdown
+        this.network.on('countdownStart', (data) => {
+            this.ui.showCountdown(data.startTime);
+        });
+
+        // Phase 8: Game Start
+        this.network.on('gameStart', () => {
+            this.gameActive = true;
+            this.ui.showGameUI(this.network.roomCode || "----");
+            // Note: Controls are handled by Input/Player. We need to ensure they can only lock if gameActive.
+        });
+
 
         this.network.on('currentPlayers', (players) => {
             this.allPlayers = players; // Store for UI
@@ -88,6 +120,9 @@ export class Game {
             // Update UI Lists
             this.ui.updatePlayerList(this.allPlayers);
             this.ui.updateLeaderboard(this.allPlayers);
+
+            // Phase 8: Also update Waiting Room if we are in it (pass stored hostId)
+            this.ui.updateWaitingRoom(this.allPlayers, this.currentHostId);
         });
 
         this.network.on('newPlayer', (p) => {
@@ -97,6 +132,7 @@ export class Game {
             // Update UI
             this.ui.addPlayerToList(p);
             this.ui.updateLeaderboard(this.allPlayers);
+            this.ui.updateWaitingRoom(this.allPlayers);
         });
 
         this.network.on('playerMoved', (p) => {

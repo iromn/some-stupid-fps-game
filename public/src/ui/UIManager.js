@@ -237,4 +237,147 @@ export class UIManager {
         this.damageOverlay.style.opacity = '0.3';
         setTimeout(() => this.damageOverlay.style.opacity = '0', 100);
     }
+
+    // --- Phase 8: Waiting Room ---
+
+    _initWaitingRoom() {
+        this.waitingRoomDiv = document.getElementById('waiting-room');
+        this.lobbyTitleText = document.getElementById('lobby-title-text');
+        this.playerSlotsDiv = document.getElementById('player-slots');
+        this.startGameBtn = document.getElementById('start-game-btn');
+        this.leaveLobbyBtn = document.getElementById('leave-lobby-btn');
+        this.countdownOverlay = document.getElementById('countdown-overlay');
+        this.countdownText = document.getElementById('countdown-text');
+        this.playerCountText = document.getElementById('player-count-text');
+    }
+
+    showWaitingRoom(roomCode, players, hostId, mySocketId) {
+        this._initWaitingRoom();
+
+        this.menuDiv.style.display = 'none';
+        this.joinModal.style.display = 'none';
+        this.waitingRoomDiv.style.display = 'flex';
+        this.lobbyTitleText.innerText = `LOBBY: ${roomCode}`;
+
+        // Store for later use
+        this.currentHostId = hostId;
+        this.mySocketId = mySocketId;
+
+        // Show Canvas behind (optional, or hide it)
+        const canvas = document.querySelector('canvas');
+        if (canvas) canvas.style.display = 'block';
+
+        this.updateWaitingRoom(players, hostId);
+    }
+
+    updateWaitingRoom(players, hostId) {
+        if (!this.playerSlotsDiv) this._initWaitingRoom();
+
+        // Update host if provided
+        if (hostId !== undefined) {
+            this.currentHostId = hostId;
+        }
+
+        this.playerSlotsDiv.innerHTML = '';
+        const playerList = Object.values(players);
+
+        // Render 6 Slots
+        for (let i = 0; i < 6; i++) {
+            const p = playerList[i];
+            const slot = document.createElement('div');
+            // Voxel Style Slot
+            slot.style.border = '4px solid #000';
+            slot.style.padding = '15px';
+            slot.style.textAlign = 'center';
+            slot.style.fontWeight = 'bold';
+            slot.style.minHeight = '60px';
+            slot.style.display = 'flex';
+            slot.style.flexDirection = 'column';
+            slot.style.justifyContent = 'center';
+            slot.style.alignItems = 'center';
+            slot.style.fontFamily = "'Courier New', monospace"; // Ensure font
+
+            if (p) {
+                slot.style.background = '#FFF';
+                slot.style.boxShadow = '5px 5px 0 rgba(0,0,0,0.2)';
+
+                // Color Box
+                const colorBox = document.createElement('div');
+                colorBox.style.width = '20px';
+                colorBox.style.height = '20px';
+                colorBox.style.backgroundColor = '#' + p.color.toString(16).padStart(6, '0');
+                colorBox.style.border = '2px solid #000';
+                colorBox.style.marginBottom = '5px';
+
+                const nameDiv = document.createElement('div');
+                nameDiv.innerText = p.name;
+                nameDiv.style.fontSize = '18px';
+
+                // Mark host with a star
+                if (p.playerId === this.currentHostId) {
+                    nameDiv.innerText = '⭐ ' + p.name;
+                }
+
+                slot.appendChild(colorBox);
+                slot.appendChild(nameDiv);
+            } else {
+                slot.style.background = '#E0E0E0';
+                slot.style.color = '#888';
+                slot.style.border = '4px dashed #999';
+                slot.innerText = "EMPTY";
+            }
+
+            this.playerSlotsDiv.appendChild(slot);
+        }
+
+        this.playerCountText.innerText = `${playerList.length}/6 PLAYERS READY`;
+
+        // Update START button visibility based on host status
+        if (this.mySocketId && this.currentHostId) {
+            if (this.mySocketId === this.currentHostId) {
+                this.startGameBtn.disabled = false;
+                this.startGameBtn.style.opacity = '1';
+                this.startGameBtn.style.cursor = 'pointer';
+            } else {
+                this.startGameBtn.disabled = true;
+                this.startGameBtn.style.opacity = '0.5';
+                this.startGameBtn.style.cursor = 'not-allowed';
+                this.startGameBtn.innerText = 'WAITING FOR HOST...';
+            }
+        }
+    }
+
+    showCountdown(startTime) {
+        if (!this.countdownOverlay) this._initWaitingRoom();
+
+        this.waitingRoomDiv.style.display = 'none'; // Hide Lobby UI
+        this.countdownOverlay.style.display = 'flex';
+
+        const interval = setInterval(() => {
+            const now = Date.now();
+            const diff = startTime - now;
+
+            if (diff <= 0) {
+                clearInterval(interval);
+                this.countdownText.innerText = "GO!";
+                // Note: Game.js handles unlocking
+                setTimeout(() => {
+                    this.countdownOverlay.style.display = 'none';
+                }, 1000);
+            } else {
+                const sec = Math.ceil(diff / 1000);
+                this.countdownText.innerText = sec;
+            }
+        }, 50);
+    }
+
+    onStartGame(callback) {
+        if (!this.startGameBtn) this._initWaitingRoom();
+        this.startGameBtn.addEventListener('click', callback);
+    }
+
+    onLeaveLobby(callback) {
+        if (!this.leaveLobbyBtn) this._initWaitingRoom();
+        this.leaveLobbyBtn.addEventListener('click', callback);
+    }
 }
