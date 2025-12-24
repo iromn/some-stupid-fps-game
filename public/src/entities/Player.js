@@ -79,21 +79,36 @@ export class Player {
         if (!this.controls.isLocked) return;
 
         // Physics Constants
-        const speed = 600.0 * delta; // accel * delta? No, accel is 600.
+        const speed = 400.0 * delta; // Reduced from 600
         // Original: 
         // if (moveForward) velocity.z -= 600.0 * delta; 
 
         // Decay
-        this.velocity.x -= this.velocity.x * 10.0 * delta;
-        this.velocity.z -= this.velocity.z * 10.0 * delta;
+        // Decay handled in ground check now for varying friction
+        // this.velocity.x -= this.velocity.x * 10.0 * delta;
+        // this.velocity.z -= this.velocity.z * 10.0 * delta;
         this.velocity.y -= 9.8 * 100.0 * delta; // Gravity
 
         this.direction.z = Number(this.input.moveForward) - Number(this.input.moveBackward);
         this.direction.x = Number(this.input.moveLeft) - Number(this.input.moveRight);
         this.direction.normalize();
 
-        if (this.input.moveForward || this.input.moveBackward) this.velocity.z -= this.direction.z * 600.0 * delta;
-        if (this.input.moveLeft || this.input.moveRight) this.velocity.x -= this.direction.x * 600.0 * delta;
+        let accel = 400.0;
+        if (this.isOnGround === false) accel = 100.0; // Reduced Air Control (Fixes Bunny Hop)
+        if (this.surfaceType === 'ice') accel = 50.0; // Hard to start/stop on ice
+
+        if (this.input.moveForward || this.input.moveBackward) this.velocity.z -= this.direction.z * accel * delta;
+        if (this.input.moveLeft || this.input.moveRight) this.velocity.x -= this.direction.x * accel * delta;
+
+        // Clamp Horizontal Speed (Prevents runoff speed stacking)
+        // Normal Max: 60.0. Ice Max: 180.0 (3x)
+        const maxSpeed = this.surfaceType === 'ice' ? 180.0 : 60.0;
+        const hVel = Math.sqrt(this.velocity.x * this.velocity.x + this.velocity.z * this.velocity.z);
+        if (hVel > maxSpeed) {
+            const factor = maxSpeed / hVel;
+            this.velocity.x *= factor;
+            this.velocity.z *= factor;
+        }
 
         // Jump
         // Input class doesn't auto-reset jump or apply velocity. 
@@ -162,14 +177,128 @@ export class Player {
         const resolution = this.physics.resolveMovement(controlObj.position, move);
         controlObj.position.copy(resolution.pos);
 
-        // Vertical Movement
+        // Vertical Movement with Ceiling Check
+        const verticalDelta = this.velocity.y * delta;
+
+        // CEILING CHECK (when moving up)
+        if (this.velocity.y > 0) {
+            const level = this.physics.level;
+            const ceilingRay = new THREE.Raycaster(
+                controlObj.position.clone(),
+                new THREE.Vector3(0, 1, 0) // Cast upward
+            );
+
+            const candidates = level.getObstacles().filter(Boolean);
+            const ceilingHits = ceilingRay.intersectObjects(candidates, false);
+
+            // Check for ceiling within player height + movement distance
+            const headClearance = 0.2; // Player head above eye level
+            const maxCeilingDist = headClearance + Math.abs(verticalDelta);
+
+            for (const hit of ceilingHits) {
+                if (hit.distance < maxCeilingDist) {
+                    // Hit ceiling! Stop upward movement
+                    this.velocity.y = 0;
+                    // Snap player just below ceiling
+                    controlObj.position.y = hit.point.y - headClearance - 0.01;
+                    break;
+                }
+            }
+        }
+
+        // Apply vertical movement (now potentially clamped)
         controlObj.position.y += this.velocity.y * delta;
 
-        // Ground Check
-        if (controlObj.position.y < 1.6) {
-            this.velocity.y = 0;
-            controlObj.position.y = 1.6;
-            this.canJump = true;
+        // VOID CHECK
+        if (controlObj.position.y < -30) {
+            // Respawn safe
+            this.velocity.set(0, 0, 0);
+            controlObj.position.set(0, 10, 0);
+            this.audio.playDie(); // Optional feedback
+        }
+
+        // Ground Check (Raycast)
+        // Raycast down from slightly higher to prevent tunneling if falling fast
+        // Origin: position.y + 1.0 (Head/Center?), Cast Down.
+        // If position is feet (approx), we want to cast from +0.5 to -Distance.
+        // Let's assume controlObj.position is Eye Level ~ 1.6
+        // Raycast from 1.6 down.
+        // If we fall to 0.1, 1.6 -> 0.1 is 1.5 dist. Valid.
+        // If we fall to -0.5, 1.6 -> -0.5 is 2.1 dist.
+        // Range should be enough to catch it.
+        // However, if we clip *through* geometry, correct origin matters.
+
+        const rayOrigin = controlObj.position.clone();
+        // rayOrigin.y += 0.0; // Already at eye level?
+
+        this.raycaster.set(rayOrigin, new THREE.Vector3(0, -1, 0));
+
+        // Optimize: Only check level geometry (floor + obstacles)
+        const level = this.physics.level;
+        const candidates = [...level.getObstacles(), level.floor].filter(Boolean);
+
+        const intersects = this.raycaster.intersectObjects(candidates, false);
+
+        let onGround = false;
+        let groundY = 0;
+        let surfaceType = 'normal';
+
+        // Find closest ground below
+        for (const hit of intersects) {
+            // Distance Check:
+            // Eye Height 1.6.
+            // Tolerance +0.2 -> 1.8 max dist.
+            // If delta Y is large, we might need more range?
+            // Let's increase range to catch fast falls, but snap correctly.
+            const maxGroundDist = 2.5; // Increased from 1.65 to catch fast falls/slopes
+
+            if (hit.distance < maxGroundDist && this.velocity.y <= 0) {
+                onGround = true;
+                // Snap to exact floor height (hit.point.y + eyeHeight)
+                groundY = hit.point.y + 1.6;
+
+                // Check surface type
+                if (hit.object.userData.type) {
+                    surfaceType = hit.object.userData.type;
+                } else if (hit.object === level.floor) {
+                    surfaceType = 'normal';
+                }
+
+                // Moving Platform Logic
+                if (hit.object.userData.velocity) {
+                    controlObj.position.add(hit.object.userData.velocity.clone().multiplyScalar(delta));
+                }
+
+                break; // Closest hit is ground
+            }
+        }
+
+        if (onGround) {
+            this.isOnGround = true;
+            this.surfaceType = surfaceType;
+
+            // Landed
+            if (surfaceType === 'slime') {
+                this.velocity.y = 350;
+                this.canJump = false;
+                this.audio.playShoot();
+            } else {
+                this.velocity.y = 0;
+                controlObj.position.y = groundY;
+                this.canJump = true;
+
+                // Ice Friction Logic
+                // Friction = Damping factor. 
+                // Normal=10.0 (Stops fast). Ice=0.5 (was 0.5, reduce to 0.2 for more slip)
+                const friction = surfaceType === 'ice' ? 0.2 : 10.0;
+                this.velocity.x -= this.velocity.x * friction * delta;
+                this.velocity.z -= this.velocity.z * friction * delta;
+            }
+        } else {
+            this.isOnGround = false;
+            // Air resistance
+            this.velocity.x -= this.velocity.x * 2.0 * delta;
+            this.velocity.z -= this.velocity.z * 2.0 * delta;
         }
 
         // Send Update
@@ -194,6 +323,7 @@ export class Player {
         // Logic
         this.raycaster.setFromCamera(new THREE.Vector2(0, 0), this.camera);
 
+        // Pass to Game for handling effects/network
         if (this.onShootRequest) {
             this.onShootRequest(this.raycaster, weaponPos, dir);
         }

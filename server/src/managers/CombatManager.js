@@ -7,6 +7,7 @@ class CombatManager {
 
         if (!shooter || !target) return null;
         if (shooter.room !== target.room) return null;
+        if (target.isDead || target.health <= 0) return null; // Ignore shots on already dead players
 
         // Validation Passed
         target.health -= 10;
@@ -37,16 +38,26 @@ class CombatManager {
                 }
             };
 
-            // Respawn Logic
-            target.health = 100;
-            target.x = (Math.random() - 0.5) * 20;
-            target.z = (Math.random() - 0.5) * 20;
+            // Respawn Logic: Safe Angles (Gaps between piston clusters)
+            const safeAngles = [30, 90, 150, 210, 270, 330];
+            const degrees = safeAngles[Math.floor(Math.random() * safeAngles.length)];
+            const baseAngle = degrees * (Math.PI / 180);
+            const angle = baseAngle + (Math.random() * 0.5 - 0.25); // +/- Jitter
+            const radius = 100 + Math.random() * 20;
+
+            target.isDead = true;
+            target.health = 0;
+
+            target.x = Math.cos(angle) * radius;
+            target.y = 5;
+            target.z = Math.sin(angle) * radius;
 
             const respawnResult = {
                 type: 'respawn',
                 data: {
                     id: targetId,
                     x: target.x,
+                    y: target.y,
                     z: target.z,
                     room: shooter.room
                 }

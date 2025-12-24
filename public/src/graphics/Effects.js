@@ -8,7 +8,7 @@ export class Effects {
     createBulletTracer(startPos, direction) {
         const bullet = new THREE.Mesh(
             new THREE.BoxGeometry(0.1, 0.1, 0.1),
-            new THREE.MeshBasicMaterial({ color: 0x000000 })
+            new THREE.MeshBasicMaterial({ color: 0x00ffff })
         );
         bullet.position.copy(startPos);
         this.scene.add(bullet);

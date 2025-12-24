@@ -166,22 +166,55 @@ export class Game {
                 this.ui.updateHealth(100);
                 document.getElementById('death-screen').style.display = 'none';
             } else {
-                // Others respawn logic (maybe reset position)
-                this.entityManager.updatePlayer(data);
-                // Also reset health visual if needed, usually handled by future update or 'playerHit' resetting it?
-                // Server resets health to 100.
-                // We should probably update name tag to 100.
+                // Others respawn logic
+                // Fix: EntityManager.updatePlayer expects 'playerId', but we have 'id'
+                const updateData = { ...data, playerId: data.id };
+                this.entityManager.updatePlayer(updateData);
+
+                // Update NameTag health
                 const p = this.entityManager.getPlayer(data.id);
                 if (p) {
                     import('../ui/NameTag.js').then(m => m.updateNameTag(p.mesh, p.mesh.userData.playerName, 100));
                 }
             }
         });
+
+        this.network.on('obstacleDamaged', (data) => {
+            const obstacles = this.level.getObstacles();
+            const wall = obstacles.find(o => o.userData.id === data.id);
+            if (wall) {
+                // Flash red
+                if (wall.material.emissive) {
+                    const originalEmissive = wall.material.emissive.getHex();
+                    wall.material.emissive.setHex(0xff0000);
+                    setTimeout(() => {
+                        wall.material.emissive.setHex(originalEmissive);
+                    }, 100);
+                }
+            }
+        });
+
+        this.network.on('playerShot', (data) => {
+            // data: { shooterId, origin, direction }
+            // Don't render own shot again? (Should be filtered by server 'to' room, but safe to check)
+            if (data.shooterId !== this.network.id) {
+                // Convert simple objects back to Vector3 if needed, likely handled by ThreeJS methods or manual
+                const origin = new THREE.Vector3(data.origin.x, data.origin.y, data.origin.z);
+                const dir = new THREE.Vector3(data.direction.x, data.direction.y, data.direction.z);
+                this.effects.createBulletTracer(origin, dir);
+            }
+        });
     }
 
     _handleShoot(raycaster, weaponPos, dir) {
-        // Create bullet tracer visual
+        // Create bullet tracer visual locally
         this.effects.createBulletTracer(weaponPos, dir);
+
+        // Notify server of shot for visuals (Broadcast)
+        this.network.emit('playerShoot', {
+            origin: weaponPos,
+            direction: dir
+        });
 
         // Logic
         const playerMeshes = this.entityManager.getPlayerMeshes();
@@ -206,9 +239,13 @@ export class Game {
             const targetId = Object.keys(players).find(id => players[id].mesh === curr);
 
             if (targetId) {
-                // Hit a player - show optimistic hit marker
+                // Hit a player
                 this.ui.showHitMarker();
                 this.network.emit('shoot', { targetId: targetId });
+            } else if (curr.userData.type === 'destructible') {
+                // Hit a destructible wall
+                this.ui.showHitMarker();
+                this.network.emit('damageObstacle', { id: curr.userData.id, damage: 10 });
             }
         }
     }
@@ -220,6 +257,7 @@ export class Game {
         const delta = Math.min((time - this.lastTime) / 1000, 0.1);
         this.lastTime = time;
 
+        this.level.update(delta, time / 1000); // Pass Time in seconds
         this.player.update(delta);
 
         // Update Remote Players?

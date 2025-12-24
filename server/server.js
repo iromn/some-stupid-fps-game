@@ -54,8 +54,39 @@ io.on('connection', (socket) => {
         } else if (event.type === 'kill') {
           io.to(event.data.room).emit('playerKilled', event.data);
         } else if (event.type === 'respawn') {
-          io.to(event.data.room).emit('playerRespawn', event.data);
+          // Delay respawn by 3 seconds
+          setTimeout(() => {
+            playerManager.revivePlayer(event.data.id);
+            io.to(event.data.room).emit('playerRespawn', event.data);
+          }, 3000);
         }
+      });
+    }
+  });
+
+  // Visual Shot Event (Broadcast Only)
+  socket.on('playerShoot', (data) => {
+    // data: { origin, direction }
+    const p = playerManager.getPlayer(socket.id);
+    if (p) {
+      socket.to(p.room).emit('playerShot', {
+        shooterId: socket.id,
+        origin: data.origin,
+        direction: data.direction
+      });
+    }
+  });
+
+  socket.on('damageObstacle', (data) => {
+    // data: { id, damage }
+    // Ideally validate player is in same room
+    const p = playerManager.getPlayer(socket.id);
+    if (p) {
+      // Broadcast to room
+      io.to(p.room).emit('obstacleDamaged', {
+        id: data.id,
+        damage: data.damage,
+        attackerId: socket.id
       });
     }
   });
