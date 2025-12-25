@@ -100,7 +100,10 @@ export class Game {
 
         // Phase 8: Countdown
         this.network.on('countdownStart', (data) => {
-            this.ui.showCountdown(data.startTime);
+            this.ui.showCountdown(data.startTime, () => {
+                // Auto-lock controls when countdown ends so game starts immediately
+                this.player.lockControls();
+            });
         });
 
         // Phase 8: Game Start

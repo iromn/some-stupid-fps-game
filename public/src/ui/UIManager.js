@@ -10,14 +10,77 @@ export class UIManager {
         this.otpInputs = document.querySelectorAll('.otp-input');
 
         this.blocker = document.getElementById('blocker');
-        this.lobbyDisplay = document.getElementById('lobby-display');
+        this.crosshair = document.getElementById('crosshair');
         this.healthText = document.getElementById('health-text');
         this.healthBarFill = document.getElementById('health-bar-fill');
         this.hitMarker = document.getElementById('hit-marker');
         this.damageOverlay = document.getElementById('damage-overlay');
         this.volumeSlider = document.getElementById('volume-slider');
 
+        // New pause menu elements
+        this.sensitivitySlider = document.getElementById('sensitivity-slider');
+        this.sensitivityValueDisplay = document.getElementById('sensitivity-value');
+        this.pauseCloseBtn = document.getElementById('pause-close-btn');
+        this.resumeGameBtn = document.getElementById('resume-game-btn');
+        this.leaveGameBtn = document.getElementById('leave-game-btn');
+
+        // Sensitivity value (default 1.0)
+        this.sensitivity = 1.0;
+
         this._initOTPInputs();
+        this._initPauseMenuEvents();
+    }
+
+    _initPauseMenuEvents() {
+        // Sensitivity slider
+        if (this.sensitivitySlider) {
+            this.sensitivitySlider.addEventListener('input', (e) => {
+                this.sensitivity = parseFloat(e.target.value);
+                // Update the value display
+                if (this.sensitivityValueDisplay) {
+                    this.sensitivityValueDisplay.textContent = this.sensitivity.toFixed(1);
+                }
+                if (this.onSensitivityChange) {
+                    this.onSensitivityChange(this.sensitivity);
+                }
+            });
+        }
+
+        // Close button (X)
+        if (this.pauseCloseBtn) {
+            this.pauseCloseBtn.addEventListener('click', () => {
+                if (this.onResumeGame) this.onResumeGame();
+            });
+        }
+
+        // Resume button
+        if (this.resumeGameBtn) {
+            this.resumeGameBtn.addEventListener('click', () => {
+                if (this.onResumeGame) this.onResumeGame();
+            });
+        }
+
+        // Leave lobby button
+        if (this.leaveGameBtn) {
+            this.leaveGameBtn.addEventListener('click', () => {
+                location.reload();
+            });
+        }
+    }
+
+    // Set callback for resume game
+    onResume(callback) {
+        this.onResumeGame = callback;
+    }
+
+    // Set callback for sensitivity change
+    onSensitivity(callback) {
+        this.onSensitivityChange = callback;
+    }
+
+    // Get current sensitivity value
+    getSensitivity() {
+        return this.sensitivity;
     }
 
     _initOTPInputs() {
@@ -98,7 +161,7 @@ export class UIManager {
 
     showGameUI(roomCode) {
         this.menuDiv.style.display = 'none';
-        this.blocker.style.display = 'flex';
+        this.blocker.style.display = 'none'; // Fix: Hide Pause Menu/Blocker by default
         this.lobbyDisplay.innerText = `Lobby: ${roomCode}`;
 
         // Show game canvas and UI
@@ -132,6 +195,33 @@ export class UIManager {
 
     togglePauseMenu(show) {
         this.blocker.style.display = show ? 'flex' : 'none';
+        // Hide crosshair when pause menu is visible
+        if (this.crosshair) {
+            this.crosshair.style.display = show ? 'none' : 'block';
+        }
+    }
+
+    // Show the "Click to Play" overlay after countdown
+    showClickToStart(onClickCallback) {
+        const overlay = document.getElementById('click-to-start');
+        if (overlay) {
+            overlay.style.display = 'flex';
+
+            // Store the callback and add click handler
+            const handleClick = () => {
+                overlay.removeEventListener('click', handleClick);
+                if (onClickCallback) onClickCallback();
+            };
+            overlay.addEventListener('click', handleClick);
+        }
+    }
+
+    // Hide the "Click to Play" overlay
+    hideClickToStart() {
+        const overlay = document.getElementById('click-to-start');
+        if (overlay) {
+            overlay.style.display = 'none';
+        }
     }
 
     updateHealth(hp) {
@@ -390,7 +480,7 @@ export class UIManager {
         }
     }
 
-    showCountdown(startTime) {
+    showCountdown(startTime, onComplete) {
         if (!this.countdownOverlay) this._initWaitingRoom();
 
         this.waitingRoomDiv.style.display = 'none'; // Hide Lobby UI
@@ -403,7 +493,12 @@ export class UIManager {
             if (diff <= 0) {
                 clearInterval(interval);
                 this.countdownText.innerText = "GO!";
-                // Note: Game.js handles unlocking
+
+                // Try to auto-lock controls (may fail due to browser security)
+                if (onComplete) {
+                    onComplete();
+                }
+
                 setTimeout(() => {
                     this.countdownOverlay.style.display = 'none';
                 }, 1000);

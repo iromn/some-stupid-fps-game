@@ -22,6 +22,9 @@ export class Player {
 
         this.raycaster = new THREE.Raycaster();
 
+        // Game state - tracks if player has started playing (first successful pointer lock)
+        this.gameStarted = false;
+
         // Weapon
         this._initWeapon();
 
@@ -59,24 +62,61 @@ export class Player {
     }
 
     _initInputEvents() {
-        // Controls Locking
-        const blocker = document.getElementById('blocker'); // Accessing direct DOM or via UI... 
-        // Ideally UI handles this, but Controls needs the callback.
-        // Let's rely on UI passing the event or standard DOM bubbling? 
-        // The original code uses 'click' on blocker.
+        // Set up resume callback from UI
+        this.ui.onResume(() => {
+            this.controls.lock();
+            this.audio.resume();
+        });
 
-        blocker.addEventListener('click', (e) => {
-            if (e.target.id !== 'volume-slider') {
-                this.controls.lock();
-                this.audio.resume();
+        // Set up sensitivity callback from UI
+        this.ui.onSensitivity((sensitivity) => {
+            // PointerLockControls uses pointerSpeed property
+            if (this.controls) {
+                this.controls.pointerSpeed = sensitivity;
             }
         });
 
-        this.controls.addEventListener('lock', () => this.ui.togglePauseMenu(false));
-        this.controls.addEventListener('unlock', () => {
-            // Need to know if game joined
-            if (this.isJoined) this.ui.togglePauseMenu(true);
+        // ESC and P key handlers for pause menu toggle
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Escape' || e.code === 'KeyP') {
+                if (this.controls.isLocked) {
+                    // Unlock controls (shows pause menu)
+                    this.controls.unlock();
+                } else if (this.isJoined) {
+                    // Lock controls (hides pause menu)
+                    this.controls.lock();
+                    this.audio.resume();
+                }
+            }
         });
+
+        this.controls.addEventListener('lock', () => {
+            this.gameStarted = true;
+            this.ui.hideClickToStart();
+            this.ui.togglePauseMenu(false);
+        });
+        this.controls.addEventListener('unlock', () => {
+            // Only show pause menu if game has actually started (player has played before)
+            if (this.isJoined && this.gameStarted) {
+                this.ui.togglePauseMenu(true);
+            }
+        });
+
+        // Prevent clicks on blocker/pause menu from triggering pointer lock
+        const blocker = document.getElementById('blocker');
+        if (blocker) {
+            blocker.addEventListener('mousedown', (e) => {
+                // Only stop propagation if blocker is visible
+                if (blocker.style.display !== 'none') {
+                    e.stopPropagation();
+                }
+            });
+            blocker.addEventListener('click', (e) => {
+                if (blocker.style.display !== 'none') {
+                    e.stopPropagation();
+                }
+            });
+        }
 
         // Shooting
         document.addEventListener('mousedown', () => {
@@ -87,6 +127,24 @@ export class Player {
 
     setJoined(val) {
         this.isJoined = val;
+    }
+
+    // Method to programmatically lock controls (for auto-start after countdown)
+    lockControls() {
+        // Try to lock - but this may fail if not triggered by user gesture
+        this.controls.lock();
+        this.audio.resume();
+
+        // Show click-to-start overlay as fallback (will be hidden on successful lock)
+        // Use a small delay to check if lock succeeded
+        setTimeout(() => {
+            if (!this.controls.isLocked && this.isJoined && !this.gameStarted) {
+                this.ui.showClickToStart(() => {
+                    this.controls.lock();
+                    this.audio.resume();
+                });
+            }
+        }, 100);
     }
 
     setPosition(x, y, z) {

@@ -24,36 +24,70 @@ export class WeaponManager {
         this.weaponContainer.add(this.handGroup);
     }
 
-    // Create a simple first-person arm and hand
+    // Create a Voxel-style (blocky) low-poly hand model (Arm Only - No Hand/Thumb)
     _createFirstPersonHand() {
         const handGroup = new THREE.Group();
-        const skinColor = 0xd4a574;
+        // Create a dedicated group for the arm meshes so we can toggle them independently of the weapon
+        const armMeshes = new THREE.Group();
+        handGroup.add(armMeshes);
+
+        // Expose this group for easy toggling later
+        handGroup.armMeshes = armMeshes;
+
+        // --- Materials ---
         const skinMat = new THREE.MeshStandardMaterial({
-            color: skinColor,
-            roughness: 0.7
+            color: 0xE0B090,
+            roughness: 0.8,
+            metalness: 0.0
         });
 
-        // Simple forearm - angled coming from bottom right
-        const forearm = new THREE.Mesh(
-            new THREE.BoxGeometry(0.08, 0.35, 0.08),
-            skinMat
-        );
-        forearm.position.set(0.05, -0.2, 0.1);
-        forearm.rotation.set(-0.5, 0, 0.2);
-        handGroup.add(forearm);
+        const sleeveMat = new THREE.MeshStandardMaterial({
+            color: 0x1A1A1A,
+            roughness: 0.9,
+            metalness: 0.1
+        });
 
-        // Simple hand/fist gripping the weapon
-        const hand = new THREE.Mesh(
-            new THREE.BoxGeometry(0.1, 0.08, 0.1),
-            skinMat
-        );
-        hand.position.set(0, 0, 0);
-        handGroup.add(hand);
+        // --- Helper for Voxel Limbs ---
+        const createBoxLimb = (w, h, d, material) => {
+            const geo = new THREE.BoxGeometry(w, h, d);
+            geo.translate(0, h / 2, 0); // Pivot at bottom
+            const mesh = new THREE.Mesh(geo, material);
+            mesh.castShadow = true;
+            return mesh;
+        };
 
-        // Position the whole hand group in classic FPS position
-        // Lower right of screen, weapon extending forward
-        handGroup.position.set(0.2, -0.25, -0.4);
-        handGroup.rotation.set(0, 0, 0);
+        // ================= RIGHT ARM (Weapon Grip) =================
+        const rightArmGroup = new THREE.Group();
+
+        // 1. Forearm (Sleeve) - Just the arm extending
+        const forearmR = createBoxLimb(0.1, 0.55, 0.1, sleeveMat);
+        forearmR.rotation.x = -Math.PI / 2;
+        rightArmGroup.add(forearmR);
+
+        // Position Right Arm Group (Default)
+        rightArmGroup.position.set(0.15, -0.25, -0.1);
+        rightArmGroup.rotation.set(-1.2, -0.2, 0.2);
+
+        // Add to ARM MESHES group, not directly to handGroup
+        armMeshes.add(rightArmGroup);
+
+
+        // ================= LEFT ARM (Support) =================
+        const leftArmGroup = new THREE.Group();
+
+        // 1. Forearm (Sleeve)
+        const forearmL = createBoxLimb(0.1, 0.55, 0.1, sleeveMat);
+        leftArmGroup.add(forearmL);
+
+        // Position Left Arm Group
+        leftArmGroup.position.set(-0.15, -0.3, -0.2);
+        leftArmGroup.rotation.set(-0.8, 0.5, -0.4);
+
+        // Add to ARM MESHES group
+        armMeshes.add(leftArmGroup);
+
+        // Initial default position 
+        handGroup.position.set(0.2, -0.2, -0.3);
 
         return handGroup;
     }
@@ -189,6 +223,20 @@ export class WeaponManager {
         // Attach weapon to hand group
         this.handGroup.add(this.weaponGroup);
         this.currentWeaponType = weaponId;
+
+        // --- Apply Per-Weapon Arm Positioning ---
+        // Dynamically adjust the entire hand/arm group to frame the weapon correctly
+        const armPos = weaponDef.armPosition || { x: 0.22, y: -0.22, z: -0.35 };
+        const armRot = weaponDef.armRotation || { x: 0.05, y: -0.1, z: 0.02 };
+
+        this.handGroup.position.set(armPos.x, armPos.y, armPos.z);
+        this.handGroup.rotation.set(armRot.x, armRot.y, armRot.z);
+
+        // Toggle arm visibility based on weapon
+        // Hide arms for Slingshot only, but keep weapon visible
+        if (this.handGroup.armMeshes) {
+            this.handGroup.armMeshes.visible = (weaponId !== 'slingshot');
+        }
     }
 
     // Check if weapon can fire (fire rate limiting)
