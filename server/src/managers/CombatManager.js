@@ -1,7 +1,8 @@
 const playerManager = require('./PlayerManager.js');
+const { WEAPONS, DEFAULT_WEAPON } = require('../utils/WeaponConfig.js');
 
 class CombatManager {
-    handleShoot(shooterId, targetId) {
+    handleShoot(shooterId, targetId, weaponType = null) {
         const shooter = playerManager.getPlayer(shooterId);
         const target = playerManager.getPlayer(targetId);
 
@@ -9,8 +10,19 @@ class CombatManager {
         if (shooter.room !== target.room) return null;
         if (target.isDead || target.health <= 0) return null; // Ignore shots on already dead players
 
-        // Validation Passed
-        target.health -= 10;
+        // Use weapon from parameter, or fall back to shooter's current weapon, or default
+        const effectiveWeapon = weaponType || shooter.weaponType || DEFAULT_WEAPON;
+        const weapon = WEAPONS[effectiveWeapon] || WEAPONS[DEFAULT_WEAPON];
+
+        // Fire rate validation (server-side anti-cheat)
+        const now = Date.now();
+        if (shooter.lastFireTime && (now - shooter.lastFireTime) < weapon.fireRate) {
+            return null; // Firing too fast, ignore shot
+        }
+        shooter.lastFireTime = now;
+
+        // Apply weapon damage
+        target.health -= weapon.damage;
 
         const result = {
             type: 'hit',
@@ -42,8 +54,8 @@ class CombatManager {
             const safeAngles = [30, 90, 150, 210, 270, 330];
             const degrees = safeAngles[Math.floor(Math.random() * safeAngles.length)];
             const baseAngle = degrees * (Math.PI / 180);
-            const angle = baseAngle + (Math.random() * 0.35 - 0.175); // Reduced jitter
-            const radius = 125 + Math.random() * 15; // OUTSIDE piston ring (was 100-120)
+            const angle = baseAngle + (Math.random() * 0.5 - 0.25); // +/- Jitter
+            const radius = 100 + Math.random() * 20;
 
             target.isDead = true;
             target.health = 0;

@@ -238,6 +238,49 @@ export class UIManager {
         setTimeout(() => this.damageOverlay.style.opacity = '0', 100);
     }
 
+    // --- Weapon Pickup Notification ---
+
+    showWeaponPickup(weaponType) {
+        // Create temporary notification for weapon pickup
+        const notification = document.createElement('div');
+        notification.className = 'weapon-pickup-notification';
+        notification.style.cssText = `
+            position: fixed;
+            bottom: 150px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: #00ff00;
+            padding: 15px 30px;
+            font-family: 'Courier New', monospace;
+            font-size: 24px;
+            font-weight: bold;
+            border: 3px solid #00ff00;
+            z-index: 1000;
+            text-transform: uppercase;
+            animation: weaponPickupFade 2s ease-out forwards;
+        `;
+        notification.textContent = `+ ${weaponType.toUpperCase()}`;
+
+        // Add animation keyframes if not already present
+        if (!document.getElementById('weapon-pickup-styles')) {
+            const style = document.createElement('style');
+            style.id = 'weapon-pickup-styles';
+            style.textContent = `
+                @keyframes weaponPickupFade {
+                    0% { opacity: 1; transform: translateX(-50%) translateY(0); }
+                    70% { opacity: 1; }
+                    100% { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+
+        document.body.appendChild(notification);
+
+        setTimeout(() => notification.remove(), 2000);
+    }
+
     // --- Phase 8: Waiting Room ---
 
     _initWaitingRoom() {

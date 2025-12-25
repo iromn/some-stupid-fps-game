@@ -53,6 +53,12 @@ export class Audio {
         osc.stop(this.ctx.currentTime + 1);
     }
 
+    playPickup() {
+        // Two-tone ascending sound for pickup
+        this.playTone(800, 'sine', 0.1, 0.08);
+        setTimeout(() => this.playTone(1200, 'sine', 0.15, 0.06), 100);
+    }
+
     resume() {
         if (this.ctx.state === 'suspended') this.ctx.resume();
     }

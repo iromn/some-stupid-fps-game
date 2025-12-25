@@ -45,6 +45,14 @@ export function createRobotCharacter(color) {
 
     const leftArm = createLimb(-0.375, 1.5, 0, 0.25, 0.75, 0.25, shirtMat, 'leftArm', color);
     const rightArm = createLimb(0.375, 1.5, 0, 0.25, 0.75, 0.25, shirtMat, 'rightArm', color);
+
+    // Add weapon attachment point to right arm (for third-person weapon display)
+    const weaponAttach = new THREE.Group();
+    weaponAttach.name = 'weaponAttach';
+    weaponAttach.position.set(0, -0.5, 0.15);  // At hand level, in front
+    rightArm.add(weaponAttach);
+    rightArm.userData.weaponAttach = weaponAttach;
+
     group.add(leftArm);
     group.add(rightArm);
 
