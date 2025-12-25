@@ -32,4 +32,8 @@ export class EntityManager {
     getPlayer(id) {
         return this.players[id];
     }
+
+    update(delta) {
+        Object.values(this.players).forEach(p => p.tick(delta));
+    }
 }
