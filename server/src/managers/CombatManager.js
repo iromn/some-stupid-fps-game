@@ -42,8 +42,8 @@ class CombatManager {
             const safeAngles = [30, 90, 150, 210, 270, 330];
             const degrees = safeAngles[Math.floor(Math.random() * safeAngles.length)];
             const baseAngle = degrees * (Math.PI / 180);
-            const angle = baseAngle + (Math.random() * 0.5 - 0.25); // +/- Jitter
-            const radius = 100 + Math.random() * 20;
+            const angle = baseAngle + (Math.random() * 0.35 - 0.175); // Reduced jitter
+            const radius = 125 + Math.random() * 15; // OUTSIDE piston ring (was 100-120)
 
             target.isDead = true;
             target.health = 0;
