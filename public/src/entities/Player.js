@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
-
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { WeaponManager } from '../weapons/WeaponManager.js';
+import { DEFAULT_WEAPON } from '../weapons/WeaponDefinitions.js';
 
 export class Player {
     constructor(camera, domElement, scene, physics, input, network, audio, ui) {
@@ -22,155 +22,129 @@ export class Player {
 
         this.raycaster = new THREE.Raycaster();
 
-        // --- Weapon Config ---
-        this.weaponConfig = {
-            'slingshot': { ammo: Infinity, maxAmmo: Infinity, cooldown: 1.5, offset: new THREE.Vector3(0.2, -0.2, -0.3), scale: 1 },
-            'pistol': { ammo: 30, maxAmmo: 30, cooldown: 0.2, offset: new THREE.Vector3(0.2, -0.2, -0.4), scale: 1 },
-            'ak47': { ammo: 20, maxAmmo: 20, cooldown: 0.1, offset: new THREE.Vector3(0.2, -0.25, -0.5), scale: 0.8 },
-            'sniper': { ammo: 5, maxAmmo: 5, cooldown: 2.0, offset: new THREE.Vector3(0.2, -0.25, -0.6), scale: 0.8 }
-        };
+        // Game state - tracks if player has started playing (first successful pointer lock)
+        this.gameStarted = false;
 
-        this.weapons = {}; // Loaded meshes
-        this.currentWeaponName = 'slingshot';
-        this.currentAmmo = Infinity;
-        this.lastShotTime = 0;
-
-        this._initWeapons();
+        // Weapon
+        this._initWeapon();
 
         // Events
         this._initInputEvents();
     }
 
-    _initWeapons() {
-        this.weaponGroup = new THREE.Group();
-        this.camera.add(this.weaponGroup);
+    _initWeapon() {
+        this.weaponManager = new WeaponManager(this.scene, this.camera, this.audio);
+        this.currentWeaponType = DEFAULT_WEAPON;
 
-        const loader = new GLTFLoader();
-        const loadWeapon = (name, path) => {
-            loader.load(path, (gltf) => {
-                const mesh = gltf.scene;
-                // Standardize orientation/scale if needed
-                mesh.rotation.y = 0; // Face forward (-Z)
-                // Generator handle was at 0,0,0.
-
-                mesh.visible = false;
-                this.weaponGroup.add(mesh);
-                this.weapons[name] = mesh;
-
-                // Equip if it's the current one
-                if (name === this.currentWeaponName) {
-                    this._equip(name);
-                }
-            }, undefined, (err) => console.error(`Failed to load ${name}`, err));
-        };
-
-        loadWeapon('slingshot', './assets/weapons/slingshot.glb');
-        loadWeapon('pistol', './assets/weapons/pistol.glb');
-        loadWeapon('ak47', './assets/weapons/ak47.glb');
-        loadWeapon('sniper', './assets/weapons/sniper.glb');
+        // Load weapons and equip default
+        this.weaponManager.loadWeapons().then(() => {
+            this.weaponManager.equipWeapon(DEFAULT_WEAPON);
+        });
     }
 
-    _equip(name) {
-        if (!this.weapons[name]) return;
-
-        // Hide old
-        if (this.weapons[this.currentWeaponName]) {
-            this.weapons[this.currentWeaponName].visible = false;
+    // Switch to a different weapon
+    switchWeapon(weaponType) {
+        if (this.weaponManager.isLoaded(weaponType)) {
+            this.weaponManager.equipWeapon(weaponType);
+            this.currentWeaponType = weaponType;
+            this.network.emit('weaponSwitch', { weaponType });
         }
+    }
 
-        this.currentWeaponName = name;
-        const w = this.weapons[name];
-        const config = this.weaponConfig[name];
+    // Attempt to pick up a weapon (sends request to server)
+    tryPickupWeapon(pickupId) {
+        this.network.emit('pickupWeapon', { pickupId });
+    }
 
-        w.visible = true;
-        w.position.copy(config.offset);
-        w.scale.setScalar(config.scale);
-
-        // Update Stats (Reset ammo on switch? Or persist? "Reset for now")
-        // User said: "Pistol will have 30 ammo". Implies per-weapon pool or reset.
-        // Let's implement PER WEAPON persistence if we want, or reset.
-        // Request: "For now lets add a cooldown for reload and later we will tweak".
-        // Let's just set Current Ammo to Max on equip (Simplest "refill") OR track separate pools.
-        // Implementation Plan said: "Decrement ammo".
-        // Let's check config.
-        if (this.weaponConfig[name].currentAmmo === undefined) {
-            this.weaponConfig[name].currentAmmo = this.weaponConfig[name].maxAmmo;
-        }
-        this.currentAmmo = this.weaponConfig[name].currentAmmo;
-
-        // Reset Scope if active
-        if (this.isScoped) {
-            this.camera.fov = this.baseFov || 75;
-            this.camera.updateProjectionMatrix();
-            this.isScoped = false;
-        }
-
-        console.log(`Equipped ${name}. Ammo: ${this.currentAmmo}`);
+    // Get current weapon type
+    getCurrentWeapon() {
+        return this.currentWeaponType;
     }
 
     _initInputEvents() {
-        // Controls Locking
-        const blocker = document.getElementById('blocker'); // Accessing direct DOM or via UI... 
-        // Ideally UI handles this, but Controls needs the callback.
-        // Let's rely on UI passing the event or standard DOM bubbling? 
-        // The original code uses 'click' on blocker.
+        // Set up resume callback from UI
+        this.ui.onResume(() => {
+            this.controls.lock();
+            this.audio.resume();
+        });
 
-        blocker.addEventListener('click', (e) => {
-            if (e.target.id !== 'volume-slider') {
-                this.controls.lock();
-                this.audio.resume();
+        // Set up sensitivity callback from UI
+        this.ui.onSensitivity((sensitivity) => {
+            // PointerLockControls uses pointerSpeed property
+            if (this.controls) {
+                this.controls.pointerSpeed = sensitivity;
             }
         });
 
-        this.controls.addEventListener('lock', () => this.ui.togglePauseMenu(false));
-        this.controls.addEventListener('unlock', () => {
-            // Need to know if game joined
-            if (this.isJoined) this.ui.togglePauseMenu(true);
-        });
-
-        // Mouse Actions
-        document.addEventListener('mousedown', (e) => {
-            if (!this.controls.isLocked) return;
-
-            // Left Click (0) -> Shoot
-            if (e.button === 0) {
-                this.shoot();
-            }
-
-            // Right Click (2) -> Scope
-            if (e.button === 2) {
-                this._toggleScope();
-            }
-        });
-
-        // Weapon Switching
+        // ESC and P key handlers for pause menu toggle
         document.addEventListener('keydown', (e) => {
-            if (!this.controls.isLocked) return;
-            if (e.key === '1') this._equip('slingshot');
-            if (e.key === '2') this._equip('pistol');
-            if (e.key === '3') this._equip('ak47');
-            if (e.key === '4') this._equip('sniper');
+            if (e.code === 'Escape' || e.code === 'KeyP') {
+                if (this.controls.isLocked) {
+                    // Unlock controls (shows pause menu)
+                    this.controls.unlock();
+                } else if (this.isJoined) {
+                    // Lock controls (hides pause menu)
+                    this.controls.lock();
+                    this.audio.resume();
+                }
+            }
         });
-    }
 
-    _toggleScope() {
-        if (this.currentWeaponName !== 'sniper') return;
+        this.controls.addEventListener('lock', () => {
+            this.gameStarted = true;
+            this.ui.hideClickToStart();
+            this.ui.togglePauseMenu(false);
+        });
+        this.controls.addEventListener('unlock', () => {
+            // Only show pause menu if game has actually started (player has played before)
+            if (this.isJoined && this.gameStarted) {
+                this.ui.togglePauseMenu(true);
+            }
+        });
 
-        if (this.isScoped) {
-            // Unscope
-            this.camera.fov = this.baseFov || 75;
-            this.isScoped = false;
-        } else {
-            // Scope
-            this.baseFov = this.camera.fov;
-            this.camera.fov = 20; // Zoomed
-            this.isScoped = true;
+        // Prevent clicks on blocker/pause menu from triggering pointer lock
+        const blocker = document.getElementById('blocker');
+        if (blocker) {
+            blocker.addEventListener('mousedown', (e) => {
+                // Only stop propagation if blocker is visible
+                if (blocker.style.display !== 'none') {
+                    e.stopPropagation();
+                }
+            });
+            blocker.addEventListener('click', (e) => {
+                if (blocker.style.display !== 'none') {
+                    e.stopPropagation();
+                }
+            });
         }
-        this.camera.updateProjectionMatrix();
+
+        // Shooting
+        document.addEventListener('mousedown', () => {
+            if (!this.controls.isLocked) return;
+            this.shoot();
+        });
     }
 
     setJoined(val) {
         this.isJoined = val;
+    }
+
+    // Method to programmatically lock controls (for auto-start after countdown)
+    lockControls() {
+        // Try to lock - but this may fail if not triggered by user gesture
+        this.controls.lock();
+        this.audio.resume();
+
+        // Show click-to-start overlay as fallback (will be hidden on successful lock)
+        // Use a small delay to check if lock succeeded
+        setTimeout(() => {
+            if (!this.controls.isLocked && this.isJoined && !this.gameStarted) {
+                this.ui.showClickToStart(() => {
+                    this.controls.lock();
+                    this.audio.resume();
+                });
+            }
+        }, 100);
     }
 
     setPosition(x, y, z) {
@@ -284,21 +258,18 @@ export class Player {
 
         // CEILING CHECK (when moving up)
         if (this.velocity.y > 0) {
-            // Reuse main raycaster, set Upward
-            this.raycaster.set(controlObj.position, new THREE.Vector3(0, 1, 0));
+            const level = this.physics.level;
+            const ceilingRay = new THREE.Raycaster(
+                controlObj.position.clone(),
+                new THREE.Vector3(0, 1, 0) // Cast upward
+            );
 
-            // Optimize: Use nearby obstacles from Physics spatial cache
-            const obstructions = this.physics.getNearbyObstacles(controlObj.position, 10);
-            // 10 units radius is plenty for ceiling check (just above head)
-
-            const ceilingHits = this.raycaster.intersectObjects(obstructions, false);
+            const candidates = level.getObstacles().filter(Boolean);
+            const ceilingHits = ceilingRay.intersectObjects(candidates, false);
 
             // Check for ceiling within player height + movement distance
             const headClearance = 0.2; // Player head above eye level
             const maxCeilingDist = headClearance + Math.abs(verticalDelta);
-
-            // Also check floor? No, floor is below.
-            // But technically if we are under a platform, it's an obstacle.
 
             for (const hit of ceilingHits) {
                 if (hit.distance < maxCeilingDist) {
@@ -338,53 +309,11 @@ export class Player {
 
         this.raycaster.set(rayOrigin, new THREE.Vector3(0, -1, 0));
 
-        // Optimize: Use Spatial Cache
+        // Optimize: Only check level geometry (floor + obstacles)
         const level = this.physics.level;
-        // Radius 30 to catch ground below if high up? 
-        // Or if falling fast.
-        const nearby = this.physics.getNearbyObstacles(controlObj.position, 40);
+        const candidates = [...level.getObstacles(), level.floor].filter(Boolean);
 
-        let intersects = this.raycaster.intersectObjects(nearby, false);
-        if (intersects.length === 0) {
-            intersects = this.raycaster.intersectObject(level.floor, false);
-        } else {
-            const floorIntersects = this.raycaster.intersectObject(level.floor, false);
-            if (floorIntersects.length > 0) {
-                // Optimization: Manual merge/compare
-                // If we have both, pick closest.
-                // intersectObjects sorts by distance. 
-                // intersects[0] is closest obstacle.
-
-                const floorDist = floorIntersects[0].distance;
-                const obsDist = intersects[0].distance;
-
-                if (floorDist < obsDist) {
-                    intersects = floorIntersects; // Floor is closer
-                }
-                // Else keep obstacles (already sorted)
-            }
-        }
-
-        // Actually, cleaner fix:
-        // Just let Raycast check `level.getObstacles()`.
-        // And check `level.floor`.
-
-        const obsHits = this.raycaster.intersectObjects(level.getObstacles(), false);
-        const floorHits = this.raycaster.intersectObject(level.floor, false);
-
-        // Combine hits manually/cheaply
-        let closestHit = null;
-        if (obsHits.length > 0) closestHit = obsHits[0];
-        if (floorHits.length > 0) {
-            if (!closestHit || floorHits[0].distance < closestHit.distance) {
-                closestHit = floorHits[0];
-            }
-        }
-
-        // Mock the array for the loop (only needs to contain closestHit if any)
-        const candidates = closestHit ? [closestHit] : [];
-        // intersects variable used below is just candidates
-        intersects = candidates;
+        const intersects = this.raycaster.intersectObjects(candidates, false);
 
         let onGround = false;
         let groundY = 0;
@@ -458,54 +387,26 @@ export class Player {
     }
 
     shoot() {
-        const now = performance.now() / 1000;
+        // Check fire rate
+        if (!this.weaponManager.canFire()) return;
 
-        // Cooldown Check
-        const stats = this.weaponConfig[this.currentWeaponName];
-        if (now - this.lastShotTime < stats.cooldown) {
-            return; // Cooldown
-        }
-
-        // Ammo Check
-        if (this.currentAmmo <= 0) {
-            // Dry fire sound?
-            return;
-        }
-
-        // Consume Ammo (if not infinite)
-        if (stats.ammo !== Infinity) {
-            this.currentAmmo--;
-            this.weaponConfig[this.currentWeaponName].currentAmmo = this.currentAmmo; // Update persistent
-            console.log(`Shot fired. Ammo: ${this.currentAmmo}`);
-        }
-
-        this.lastShotTime = now;
-
-        // Visual
+        // Get weapon position for visual effects
         const weaponPos = new THREE.Vector3();
-        // Use the group or current weapon mesh?
-        if (this.weapons[this.currentWeaponName]) {
-            this.weapons[this.currentWeaponName].getWorldPosition(weaponPos);
-        } else {
-            // Fallback if not loaded
-            this.camera.getWorldPosition(weaponPos);
-        }
-
+        this.weaponManager.getWeaponWorldPosition(weaponPos);
         const dir = new THREE.Vector3();
         this.camera.getWorldDirection(dir);
-        weaponPos.addScaledVector(dir, 1.0); // Start slightly ahead
+        weaponPos.addScaledVector(dir, 0.5);
 
-
-        this.audio.playShoot();
+        // Play weapon-specific sound
+        this.weaponManager.playShootSound();
+        this.weaponManager.recordFire();
 
         // Logic
         this.raycaster.setFromCamera(new THREE.Vector2(0, 0), this.camera);
 
-        const visualType = this.currentWeaponName === 'slingshot' ? 'rock' : 'bullet';
-
-        // Pass to Game for handling effects/network
+        // Pass to Game for handling effects/network (include weapon type)
         if (this.onShootRequest) {
-            this.onShootRequest(this.raycaster, weaponPos, dir, visualType);
+            this.onShootRequest(this.raycaster, weaponPos, dir, this.currentWeaponType);
         }
     }
 }

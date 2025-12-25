@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import { Renderer } from '../graphics/Renderer.js';
 import { Input } from './Input.js';
 import { Audio } from './Audio.js';
@@ -8,6 +9,7 @@ import { Physics } from '../world/Physics.js';
 import { Player } from '../entities/Player.js';
 import { EntityManager } from '../entities/EntityManager.js';
 import { Effects } from '../graphics/Effects.js';
+import { PickupManager } from '../weapons/PickupManager.js';
 
 export class Game {
     constructor() {
@@ -22,6 +24,7 @@ export class Game {
         this.effects = new Effects(this.renderer.scene);
 
         this.entityManager = new EntityManager(this.renderer.scene);
+        this.pickupManager = new PickupManager(this.renderer.scene, this.network);
 
         this.player = new Player(
             this.renderer.camera,
@@ -34,8 +37,8 @@ export class Game {
             this.ui
         );
 
-        // Bind Player Shoot to Effects
-        this.player.onShootRequest = (raycaster, weaponPos, dir, visualType) => this._handleShoot(raycaster, weaponPos, dir, visualType);
+        // Bind Player Shoot to Effects (includes weapon type)
+        this.player.onShootRequest = (raycaster, weaponPos, dir, weaponType) => this._handleShoot(raycaster, weaponPos, dir, weaponType);
 
         this._initNetworkEvents();
         this._initUIEvents();
@@ -97,7 +100,10 @@ export class Game {
 
         // Phase 8: Countdown
         this.network.on('countdownStart', (data) => {
-            this.ui.showCountdown(data.startTime);
+            this.ui.showCountdown(data.startTime, () => {
+                // Auto-lock controls when countdown ends so game starts immediately
+                this.player.lockControls();
+            });
         });
 
         // Phase 8: Game Start
@@ -237,20 +243,57 @@ export class Game {
                 // Convert simple objects back to Vector3 if needed, likely handled by ThreeJS methods or manual
                 const origin = new THREE.Vector3(data.origin.x, data.origin.y, data.origin.z);
                 const dir = new THREE.Vector3(data.direction.x, data.direction.y, data.direction.z);
-                this.effects.createBulletTracer(origin, dir, data.visualType || 'bullet');
+                this.effects.createBulletTracer(origin, dir);
+            }
+        });
+
+        // Weapon pickup events
+        this.network.on('pickupsState', (pickups) => {
+            // Initial pickups when game starts
+            this.pickupManager.clear();
+            pickups.forEach(p => this.pickupManager.addPickup(p));
+        });
+
+        this.network.on('pickupCollected', (data) => {
+            // data: { pickupId, playerId, weaponType }
+            this.pickupManager.removePickup(data.pickupId);
+
+            if (data.playerId === this.network.id) {
+                // Local player picked up weapon
+                this.player.switchWeapon(data.weaponType);
+                this.ui.showWeaponPickup(data.weaponType);
+                this.audio.playPickup();
+            } else {
+                // Remote player picked up weapon
+                const remotePlayer = this.entityManager.getPlayer(data.playerId);
+                if (remotePlayer) {
+                    remotePlayer.updateWeapon(data.weaponType);
+                }
+            }
+        });
+
+        this.network.on('pickupRespawned', (pickup) => {
+            this.pickupManager.addPickup(pickup);
+        });
+
+        this.network.on('playerWeaponChanged', (data) => {
+            // data: { playerId, weaponType }
+            const remotePlayer = this.entityManager.getPlayer(data.playerId);
+            if (remotePlayer) {
+                remotePlayer.updateWeapon(data.weaponType);
             }
         });
     }
 
-    _handleShoot(raycaster, weaponPos, dir, visualType = 'bullet') {
+    _handleShoot(raycaster, weaponPos, dir, weaponType) {
         // Create bullet tracer visual locally
-        this.effects.createBulletTracer(weaponPos, dir, visualType);
+        this.effects.createBulletTracer(weaponPos, dir);
 
         // Notify server of shot for visuals (Broadcast)
         this.network.emit('playerShoot', {
             origin: weaponPos,
             direction: dir,
-            visualType: visualType
+            weaponType: weaponType
         });
 
         // Logic
@@ -278,7 +321,7 @@ export class Game {
             if (targetId) {
                 // Hit a player
                 this.ui.showHitMarker();
-                this.network.emit('shoot', { targetId: targetId });
+                this.network.emit('shoot', { targetId: targetId, weaponType: weaponType });
             } else if (curr.userData.type === 'destructible') {
                 // Hit a destructible wall
                 this.ui.showHitMarker();
@@ -296,10 +339,21 @@ export class Game {
 
         this.level.update(delta, time / 1000); // Pass Time in seconds
         this.player.update(delta);
-        this.entityManager.update(delta);
+
+        // Update weapon pickups (animations)
+        this.pickupManager.update(delta);
+
+        // Check for nearby weapon pickups (only if game is active and controls locked)
+        if (this.gameActive && this.player.controls.isLocked) {
+            const playerPos = this.player.controls.getObject().position;
+            const nearbyPickup = this.pickupManager.checkProximity(playerPos, 2.5);
+            if (nearbyPickup) {
+                this.player.tryPickupWeapon(nearbyPickup.id);
+            }
+        }
 
         // Update Remote Players?
-        // RemotePlayer.update usually takes server data. 
+        // RemotePlayer.update usually takes server data.
         // Do we need to update animation frame-by-frame (idle anim)?
         // Original code: `socket.on('playerMoved')` -> updates position/rotation.
         // But the waddle animation depends on `performance.now()` inside the update function?

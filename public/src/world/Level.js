@@ -283,50 +283,53 @@ export class Level {
         if (this.dynamicActors) {
             for (const actor of this.dynamicActors) {
                 if (actor.type === 'piston') {
-                    // DETERMINISTIC MOVEMENT based on Time
-                    // Cycle: 4s up, 2s wait, 4s down, 2s wait = 12s period
-                    const period = 8.0; 
-                    // Add phase offset based on position to keep "random" look but deterministic
-                    const phase = (actor.mesh.position.x * 0.1 + actor.mesh.position.z * 0.1) * 2.0;
-                    
-                    const t = (time + phase) % period;
-                    
-                    let yOffset = 0;
-                    
-                    // Simple Sine Wave approach for smoothness:
-                    // value = (sin(time) + 1) / 2 * range
-                    // But user wants "Piston" feel (Up... Wait... Down...)
-                    // Let's use a smoother step function
-                    
-                    // 0-3: Move Up
-                    // 3-5: Stay Up
-                    // 5-8: Move Down
-                    // 8-10: Stay Down
-                    
-                    // Let's use Math.sin for easiest sync
-                    // factor: 0 to 1
-                    const rawSin = Math.sin((time + phase) * 0.5); // Slow pulse
-                    // Map -1..1 to 0..1
-                    let factor = (rawSin + 1) / 2;
-                    
-                    // Sharpen the curve to make it "snap" more like hydraulic pistons
-                    // Power function
-                    factor = Math.pow(factor, 3); 
-                    
-                    const minH = actor.minTopY;
-                    const maxH = actor.maxTopY;
-                    const currentTop = minH + (maxH - minH) * factor;
+                    // Vertical Movement Logic
+                    if (actor.state === 'WAIT') {
+                        actor.timer -= delta;
+                        if (actor.timer <= 0) {
+                            // Pick new target
+                            const goUp = Math.random() > 0.5;
+                            actor.targetTopY = goUp ? actor.maxTopY : actor.minTopY;
 
-                    // Update Y
-                    const h = actor.maxHeight;
-                    const newY = currentTop - (h / 2);
-                    
-                    // Calculate velocity for physics (approximate derivative)
-                    const oldY = actor.mesh.position.y;
-                    const vY = (newY - oldY) / delta;
-                    
-                    actor.mesh.position.y = newY;
-                    actor.mesh.userData.velocity = new THREE.Vector3(0, vY, 0);
+                            // Piston Duration
+                            actor.moveDuration = 1.0 + Math.random() * 2.0;
+
+                            actor.startTopY = actor.currentTopY;
+                            actor.moveProgress = 0;
+                            actor.state = 'MOVE';
+
+                            // If already at target, wait again
+                            if (Math.abs(actor.startTopY - actor.targetTopY) < 0.1) {
+                                actor.state = 'WAIT';
+                                actor.timer = 8.0 + Math.random() * 4.0;
+                            }
+                        }
+                    } else if (actor.state === 'MOVE') {
+                        actor.moveProgress += delta;
+                        const t = Math.min(actor.moveProgress / actor.moveDuration, 1.0);
+
+                        // Easing
+                        const ease = t * t * (3 - 2 * t);
+
+                        const newTopY = actor.startTopY + (actor.targetTopY - actor.startTopY) * ease;
+                        actor.currentTopY = newTopY;
+
+                        // Velocity
+                        const dist = (actor.targetTopY - actor.startTopY);
+                        const deriv = (6 * t * (1 - t)) / actor.moveDuration;
+                        const vY = dist * deriv;
+
+                        // Update Mesh
+                        const h = actor.maxHeight;
+                        actor.mesh.position.y = newTopY - (h / 2);
+                        actor.mesh.userData.velocity = new THREE.Vector3(0, vY, 0);
+
+                        if (t >= 1.0) {
+                            actor.state = 'WAIT';
+                            actor.timer = 8.0 + Math.random() * 4.0;
+                            actor.mesh.userData.velocity = new THREE.Vector3(0, 0, 0);
+                        }
+                    }
                 }
             }
         }

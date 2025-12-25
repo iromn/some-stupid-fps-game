@@ -8,6 +8,7 @@ const io = new Server(server);
 const roomManager = require('./src/managers/RoomManager.js');
 const playerManager = require('./src/managers/PlayerManager.js');
 const combatManager = require('./src/managers/CombatManager.js');
+const weaponManager = require('./src/managers/WeaponManager.js');
 
 app.use(express.static('public'));
 
@@ -54,6 +55,11 @@ io.on('connection', (socket) => {
     if (p) {
       const result = roomManager.startGame(p.room, socket.id);
       if (result.success) {
+        // Initialize weapon pickups for this room
+        weaponManager.initializePickups(p.room);
+        const pickups = weaponManager.getActivePickups(p.room);
+        io.to(p.room).emit('pickupsState', pickups);
+
         // Broadcast Countdown
         const countdownTime = 3000; // 3 seconds
         const startTime = Date.now() + countdownTime + 500; // +500ms buffer
@@ -80,7 +86,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('shoot', (shootData) => {
-    const events = combatManager.handleShoot(socket.id, shootData.targetId);
+    const events = combatManager.handleShoot(socket.id, shootData.targetId, shootData.weaponType);
 
     if (events) {
       events.forEach(event => {
@@ -122,6 +128,47 @@ io.on('connection', (socket) => {
         id: data.id,
         damage: data.damage,
         attackerId: socket.id
+      });
+    }
+  });
+
+  // Weapon pickup attempt
+  socket.on('pickupWeapon', (data) => {
+    const p = playerManager.getPlayer(socket.id);
+    if (!p) return;
+
+    const result = weaponManager.tryPickup(socket.id, data.pickupId, p.room);
+
+    if (result.success) {
+      // Update player's weapon
+      playerManager.updateWeapon(socket.id, result.weaponType);
+
+      // Notify all players in room
+      io.to(p.room).emit('pickupCollected', {
+        pickupId: result.pickupId,
+        playerId: socket.id,
+        weaponType: result.weaponType
+      });
+
+      // Schedule respawn
+      const respawnTime = weaponManager.getRespawnTime();
+      setTimeout(() => {
+        const respawnedPickup = weaponManager.respawnPickup(result.spawnIndex, p.room);
+        if (respawnedPickup) {
+          io.to(p.room).emit('pickupRespawned', respawnedPickup);
+        }
+      }, respawnTime);
+    }
+  });
+
+  // Weapon switch (player manually switches)
+  socket.on('weaponSwitch', (data) => {
+    const p = playerManager.getPlayer(socket.id);
+    if (p) {
+      playerManager.updateWeapon(socket.id, data.weaponType);
+      socket.to(p.room).emit('playerWeaponChanged', {
+        playerId: socket.id,
+        weaponType: data.weaponType
       });
     }
   });

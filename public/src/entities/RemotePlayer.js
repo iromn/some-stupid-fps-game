@@ -1,5 +1,12 @@
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { createPlayerMesh } from './Character.js';
 import { updateNameTag } from '../ui/NameTag.js';
+import { WEAPONS, DEFAULT_WEAPON } from '../weapons/WeaponDefinitions.js';
+
+// Shared model cache across all remote players
+const weaponModelCache = {};
+const loader = new GLTFLoader();
 
 export class RemotePlayer {
     constructor(scene, data) {
@@ -12,87 +19,130 @@ export class RemotePlayer {
             updateNameTag(this.mesh, data.name, data.health);
         }
 
-        this.scene.add(this.mesh);
+        // Weapon state
+        this.currentWeaponType = data.weaponType || DEFAULT_WEAPON;
+        this.weaponMesh = null;
 
-        // Interpolation State
-        this.targetPosition = new THREE.Vector3(data.x, data.y, data.z);
-        this.targetRotation = data.rotation;
+        // Load and attach weapon
+        this._loadWeapon(this.currentWeaponType);
+
+        this.scene.add(this.mesh);
+    }
+
+    // Load weapon model and attach to character's hand
+    _loadWeapon(weaponType) {
+        const weaponDef = WEAPONS[weaponType];
+        if (!weaponDef) return;
+
+        // Check cache first
+        if (weaponModelCache[weaponType]) {
+            this._attachWeapon(weaponModelCache[weaponType].clone(), weaponType);
+            return;
+        }
+
+        // Load the model
+        loader.load(
+            weaponDef.modelPath,
+            (gltf) => {
+                const model = gltf.scene;
+                model.traverse((child) => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                    }
+                });
+                weaponModelCache[weaponType] = model;
+                this._attachWeapon(model.clone(), weaponType);
+            },
+            undefined,
+            () => {
+                // Fallback: create simple box weapon
+                const fallback = this._createFallbackWeapon(weaponType);
+                weaponModelCache[weaponType] = fallback;
+                this._attachWeapon(fallback.clone(), weaponType);
+            }
+        );
+    }
+
+    // Create fallback primitive weapon
+    _createFallbackWeapon(weaponType) {
+        const group = new THREE.Group();
+        let barrelLength = 0.4;
+        let color = 0x555555;
+
+        switch (weaponType) {
+            case 'ak47': barrelLength = 0.6; color = 0x4a3728; break;
+            case 'sniper': barrelLength = 0.8; color = 0x2a2a2a; break;
+            case 'slingshot': barrelLength = 0.2; color = 0x8b4513; break;
+        }
+
+        const barrel = new THREE.Mesh(
+            new THREE.BoxGeometry(0.08, 0.1, barrelLength),
+            new THREE.MeshStandardMaterial({ color })
+        );
+        barrel.position.z = barrelLength / 2;
+        group.add(barrel);
+
+        return group;
+    }
+
+    // Attach weapon model to character's right arm
+    _attachWeapon(model, weaponType) {
+        // Remove existing weapon
+        if (this.weaponMesh) {
+            const attachPoint = this.mesh.userData.limbs?.rightArm?.userData?.weaponAttach;
+            if (attachPoint) {
+                attachPoint.remove(this.weaponMesh);
+            }
+        }
+
+        // Get weapon definition for scaling
+        const weaponDef = WEAPONS[weaponType];
+        const scale = weaponDef ? weaponDef.scale.x * 0.6 : 0.08;  // Smaller for third-person
+
+        model.scale.setScalar(scale);
+        model.rotation.set(0, Math.PI / 2, 0);  // Point forward
+
+        // Attach to right arm
+        const attachPoint = this.mesh.userData.limbs?.rightArm?.userData?.weaponAttach;
+        if (attachPoint) {
+            attachPoint.add(model);
+            this.weaponMesh = model;
+        }
+    }
+
+    // Update weapon when player picks up a new one
+    updateWeapon(weaponType) {
+        if (weaponType !== this.currentWeaponType) {
+            this.currentWeaponType = weaponType;
+            this._loadWeapon(weaponType);
+        }
     }
 
     update(data) {
-        // Network Update: Set Target
-        if (data.x !== undefined) this.targetPosition.set(data.x, data.y, data.z);
-        if (data.rotation !== undefined) this.targetRotation = data.rotation;
-
-        // Update Name/Health immediate
-        if (data.health !== undefined) {
-            import('../ui/NameTag.js').then(m => m.updateNameTag(this.mesh, data.name || this.mesh.userData.playerName, data.health));
-        }
-    }
-
-    tick(delta) {
         if (!this.mesh) return;
 
-        // Interpolate Position
-        // Lerp factor: Adjust for smoothness vs lag. 10.0 * delta is decent.
-        const lerpFactor = 10.0 * delta;
-
-        this.mesh.position.lerp(this.targetPosition, lerpFactor);
-
-        // Interpolate Rotation (Y-axis only)
-        // Shortest path interpolation for angles
-        let diff = this.targetRotation - this.mesh.rotation.y;
-        while (diff > Math.PI) diff -= Math.PI * 2;
-        while (diff < -Math.PI) diff += Math.PI * 2;
-        this.mesh.rotation.y += diff * lerpFactor;
-
-        // Goofy Animation Logic (Visuals only)
-        // Only animate if moving?
-        const speed = this.mesh.position.distanceTo(this.targetPosition);
+        // Visual smoothing with simple interpolation could go here, 
+        // but sticking to existing logic:
+        // Goofy Animation Logic
         const time = performance.now() / 100;
+        const bounce = Math.abs(Math.sin(time)) * 0.2;
 
-        // Bounce relative to ground (target Y)
-        // If we interpolate Y, the "bounce" might fight the lerp?
-        // Let's add bounce to the MESH VISUAL (a child?), or just modify Y after Lerp?
-        // If we modify Y here, next Lerp will try to pull it back to target.
-        // Solution: Apply bounce as an offset or modify the logic.
-        // The original code set Y to (targetY - 1.6) + bounce.
-        // Now mesh.position IS the interpolated world position.
-        // Let's just add bounce to the existing Y?
-        // No, that accumulates.
-        // We need 'base Y' vs 'visual Y'.
-        // For simplicity: We Lerp to Target (Base).
-        // Then we add bounce offset?
-        // But if we modify `mesh.position`, the next frame's start point is wrong.
-        // Correct way: Only animate limbs.
-        // But original had "bounce". 
-        // Let's keep the limbs part and skip body bounce for now to avoid jitter, 
-        // OR add a "Body Mesh" child that bounces.
-        // The current mesh IS the group.
-        // Let's just animate limbs.
+        this.mesh.position.set(data.x, (data.y - 1.6) + bounce, data.z);
+        this.mesh.rotation.y = data.rotation;
 
-        // this.mesh.rotation.z = Math.cos(time) * 0.2; // Tilt
-        if (speed > 0.1) {
-            this.mesh.rotation.z = Math.cos(time) * 0.2 * Math.min(speed * 10, 1);
-        } else {
-            this.mesh.rotation.z = this.mesh.rotation.z * (1 - lerpFactor); // Return to 0
-        }
+        this.mesh.rotation.z = Math.cos(time) * 0.2;
 
         if (this.mesh.userData.limbs) {
-            const isMoving = speed > 0.05; // Threshold
-            const limbAmp = isMoving ? 1.4 : 0.1; // Idle breath?
-
-            // If moving, animate fast. If idle, slow.
-            // Using global time is simplest.
-
+            const limbAmp = 1.4;
             this.mesh.userData.limbs.leftLeg.rotation.x = Math.sin(time) * limbAmp;
             this.mesh.userData.limbs.rightLeg.rotation.x = Math.sin(time + Math.PI) * limbAmp;
 
             this.mesh.userData.limbs.leftArm.rotation.x = Math.sin(time + Math.PI) * limbAmp;
             this.mesh.userData.limbs.rightArm.rotation.x = Math.sin(time) * limbAmp;
 
-            this.mesh.userData.limbs.leftArm.rotation.z = 0.5 + Math.abs(Math.sin(time)) * (isMoving ? 0.3 : 0.05);
-            this.mesh.userData.limbs.rightArm.rotation.z = -0.5 - Math.abs(Math.sin(time)) * (isMoving ? 0.3 : 0.05);
+            this.mesh.userData.limbs.leftArm.rotation.z = 0.5 + Math.abs(Math.sin(time)) * 0.3;
+            this.mesh.userData.limbs.rightArm.rotation.z = -0.5 - Math.abs(Math.sin(time)) * 0.3;
         }
     }
 
