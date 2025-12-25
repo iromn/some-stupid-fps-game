@@ -5,17 +5,19 @@ class PlayerManager {
 
     addPlayer(id, room, name, color) {
         // Safe Spawn Logic:
-        // Piston Clusters are at 0, 60, 120, 180, 240, 300 (Radius 110)
-        // We spawn in the GAPS: 30, 90, 150, 210, 270, 330
+        // Piston Clusters are at 0, 60, 120, 180, 240, 330 (Radius 110)
+        // Move spawn OUTSIDE the piston ring to avoid getting stuck in them
+        // Ring is ~110. Let's spawn at 130 +/- 10.
+        // Bounds are 150. 120-140 is safe.
         const safeAngles = [30, 90, 150, 210, 270, 330];
         const degrees = safeAngles[Math.floor(Math.random() * safeAngles.length)];
         const baseAngle = degrees * (Math.PI / 180);
 
-        // Add jitter: +/- 15 degrees
-        const angle = baseAngle + (Math.random() * 0.5 - 0.25);
+        // Add jitter: +/- 10 degrees (reduced from ~28)
+        const angle = baseAngle + (Math.random() * 0.35 - 0.175);
 
-        // Radius: 100 to 120 (Center of the ring roughly)
-        const radius = 100 + Math.random() * 20;
+        // Radius: 125 to 140 (Outside piston ring)
+        const radius = 125 + Math.random() * 15;
 
         this.players[id] = {
             playerId: id,

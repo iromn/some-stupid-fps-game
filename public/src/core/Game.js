@@ -35,7 +35,7 @@ export class Game {
         );
 
         // Bind Player Shoot to Effects
-        this.player.onShootRequest = (raycaster, weaponPos, dir) => this._handleShoot(raycaster, weaponPos, dir);
+        this.player.onShootRequest = (raycaster, weaponPos, dir, visualType) => this._handleShoot(raycaster, weaponPos, dir, visualType);
 
         this._initNetworkEvents();
         this._initUIEvents();
@@ -237,19 +237,20 @@ export class Game {
                 // Convert simple objects back to Vector3 if needed, likely handled by ThreeJS methods or manual
                 const origin = new THREE.Vector3(data.origin.x, data.origin.y, data.origin.z);
                 const dir = new THREE.Vector3(data.direction.x, data.direction.y, data.direction.z);
-                this.effects.createBulletTracer(origin, dir);
+                this.effects.createBulletTracer(origin, dir, data.visualType || 'bullet');
             }
         });
     }
 
-    _handleShoot(raycaster, weaponPos, dir) {
+    _handleShoot(raycaster, weaponPos, dir, visualType = 'bullet') {
         // Create bullet tracer visual locally
-        this.effects.createBulletTracer(weaponPos, dir);
+        this.effects.createBulletTracer(weaponPos, dir, visualType);
 
         // Notify server of shot for visuals (Broadcast)
         this.network.emit('playerShoot', {
             origin: weaponPos,
-            direction: dir
+            direction: dir,
+            visualType: visualType
         });
 
         // Logic
@@ -295,6 +296,7 @@ export class Game {
 
         this.level.update(delta, time / 1000); // Pass Time in seconds
         this.player.update(delta);
+        this.entityManager.update(delta);
 
         // Update Remote Players?
         // RemotePlayer.update usually takes server data. 
