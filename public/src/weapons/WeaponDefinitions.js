@@ -14,6 +14,7 @@ export const WEAPONS = {
         scale: { x: 1.5, y: 1.5, z: 1.5 },
         rotation: { x: 0.05, y: 0.1, z: 0 },
         handOffset: { x: 0.02, y: 0.03, z: -0.12 },
+        muzzleOffset: 0.6, // Slightly in front
         // Custom Arm Positioning (Pistol needs to be higher/closer)
         armPosition: { x: 0.2, y: -0.15, z: -0.3 },
         armRotation: { x: 0.05, y: -0.1, z: 0.02 },
@@ -36,6 +37,7 @@ export const WEAPONS = {
         scale: { x: 1.3, y: 1.3, z: 1.3 },
         rotation: { x: 0.03, y: 0.08, z: 0 },
         handOffset: { x: 0.03, y: 0.04, z: -0.18 },
+        muzzleOffset: 1.2, // Further out for long barrel
         // Standard "Good" Positioning
         armPosition: { x: 0.22, y: -0.22, z: -0.35 },
         armRotation: { x: 0.05, y: -0.1, z: 0.02 },
@@ -58,6 +60,7 @@ export const WEAPONS = {
         scale: { x: 1.4, y: 1.4, z: 1.4 },
         rotation: { x: 0.02, y: 0.06, z: 0 },
         handOffset: { x: 0.04, y: 0.05, z: -0.22 },
+        muzzleOffset: 1.6, // Very long barrel
         // Similar to AK but slightly heavier feel (lower)
         armPosition: { x: 0.22, y: -0.24, z: -0.35 },
         armRotation: { x: 0.05, y: -0.1, z: 0.02 },
@@ -80,6 +83,7 @@ export const WEAPONS = {
         scale: { x: 1.2, y: 1.2, z: 1.2 },
         rotation: { x: 0.04, y: 0.1, z: 0 },
         handOffset: { x: 0.02, y: 0.03, z: -0.08 },
+        muzzleOffset: 0.5,
         // Slingshot needs to be higher and more centered to see the fork, but simplified arm
         armPosition: { x: 0.25, y: -0.2, z: -0.3 },
         armRotation: { x: 0.1, y: -0.05, z: 0 },

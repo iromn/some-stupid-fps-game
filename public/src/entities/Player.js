@@ -424,6 +424,10 @@ export class Player {
             z: controlObj.position.z,
             rotation: controlObj.rotation.y
         });
+
+        // Update Weapon Sway
+        const mouseDelta = this.input.getMouseDelta(); // {x, y}
+        this.weaponManager.updateSway(mouseDelta, this.velocity, delta, this.isScoped);
     }
 
     toggleScope(force = null) {
@@ -465,7 +469,12 @@ export class Player {
         this.weaponManager.getWeaponWorldPosition(weaponPos);
         const dir = new THREE.Vector3();
         this.camera.getWorldDirection(dir);
-        weaponPos.addScaledVector(dir, 0.5);
+
+        // Dynamic Muzzle Offset
+        const weaponDef = this.weaponManager.getCurrentWeaponDef();
+        const offset = weaponDef.muzzleOffset || 0.5;
+
+        weaponPos.addScaledVector(dir, offset);
 
         // Play weapon-specific sound
         this.weaponManager.playShootSound();
@@ -488,4 +497,6 @@ export class Player {
             this.onShootRequest(this.raycaster, weaponPos, dir, this.currentWeaponType);
         }
     }
+
+
 }

@@ -34,6 +34,11 @@ export class Audio {
         this.playTone(100, 'sawtooth', 0.1, 0.05);
     }
 
+    playHitMarker() {
+        // Sharp, high-pitched tick
+        this.playTone(2000, 'sine', 0.05, 0.1);
+    }
+
     playDie() {
         if (this.ctx.state === 'suspended') this.ctx.resume();
         const osc = this.ctx.createOscillator();

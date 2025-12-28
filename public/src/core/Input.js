@@ -27,6 +27,21 @@ export class Input {
             if (e.button === 2) this.rightClick = false;
         });
         document.addEventListener('contextmenu', (e) => e.preventDefault()); // Block context menu
+
+        // Sway Tracker
+        this.mouseX = 0;
+        this.mouseY = 0;
+        document.addEventListener('mousemove', (e) => {
+            this.mouseX += e.movementX || 0;
+            this.mouseY += e.movementY || 0;
+        });
+    }
+
+    getMouseDelta() {
+        const delta = { x: this.mouseX, y: this.mouseY };
+        this.mouseX = 0;
+        this.mouseY = 0;
+        return delta;
     }
 
     _onKeyDown(e) {

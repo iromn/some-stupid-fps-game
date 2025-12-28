@@ -190,11 +190,27 @@ export class Game {
                 if (data.attackerId && data.attackerId !== this.network.id) {
                     this.audio.playHit(); // Being hit sound
                 }
+            } else if (data.attackerId === this.network.id) {
+                // I hit someone
+                this.audio.playHitMarker();
+                this.ui.showHitMarker();
             }
         });
 
         this.network.on('playerKilled', (data) => {
-            // data: { victimId, killerId }
+            // data: { victimId, killerId, killerKills }
+
+            // Update local kill count for leaderboard
+            if (this.allPlayers && this.allPlayers[data.killerId]) {
+                this.allPlayers[data.killerId].kills = data.killerKills;
+                this.ui.updateLeaderboard(this.allPlayers);
+
+                // Show Kill Feed
+                const killerName = data.killerId === this.network.id ? 'YOU' : (this.allPlayers[data.killerId]?.name || 'Unknown');
+                const victimName = data.victimId === this.network.id ? 'YOU' : (this.allPlayers[data.victimId]?.name || 'Unknown');
+                this.ui.showKillFeed(killerName, victimName, (data.killerId === this.network.id || data.victimId === this.network.id));
+            }
+
             if (data.victimId === this.network.id) {
                 document.getElementById('death-screen').style.display = 'flex'; // UI Manager should handle this
                 this.audio.playDie();

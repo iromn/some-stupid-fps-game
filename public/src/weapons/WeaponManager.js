@@ -22,6 +22,13 @@ export class WeaponManager {
         // Create first-person hand/arm
         this.handGroup = this._createFirstPersonHand();
         this.weaponContainer.add(this.handGroup);
+
+        // Sway State
+        this.basePosition = new THREE.Vector3();
+        this.baseRotation = new THREE.Euler();
+        this.swayPosition = new THREE.Vector3();
+        this.swayRotation = new THREE.Vector3(); // Using Vector3 for Euler Lerping simplicity
+        this.bobTime = 0;
     }
 
     // Create a Voxel-style (blocky) low-poly hand model (Arm Only - No Hand/Thumb)
@@ -229,8 +236,11 @@ export class WeaponManager {
         const armPos = weaponDef.armPosition || { x: 0.22, y: -0.22, z: -0.35 };
         const armRot = weaponDef.armRotation || { x: 0.05, y: -0.1, z: 0.02 };
 
-        this.handGroup.position.set(armPos.x, armPos.y, armPos.z);
-        this.handGroup.rotation.set(armRot.x, armRot.y, armRot.z);
+        this.basePosition.set(armPos.x, armPos.y, armPos.z);
+        this.baseRotation.set(armRot.x, armRot.y, armRot.z);
+
+        this.handGroup.position.copy(this.basePosition);
+        this.handGroup.rotation.set(this.baseRotation.x, this.baseRotation.y, this.baseRotation.z);
 
         // Toggle arm visibility based on weapon
         // Hide arms for Slingshot only, but keep weapon visible
@@ -292,6 +302,67 @@ export class WeaponManager {
     // Check if a weapon model is loaded
     isLoaded(weaponId) {
         return !!this.weaponModels[weaponId];
+    }
+
+    // Apply procedural weapon sway and bobbing
+    updateSway(mouseDelta, moveVelocity, delta, isScoped = false) {
+        if (!this.handGroup) return;
+
+        // 1. Sway (Mouse Look Lag)
+        // Reduce sway when scoped for stability
+        const swayAmount = isScoped ? 0.0001 : 0.002;
+        const maxSway = isScoped ? 0.02 : 0.1;
+        const smooth = 10.0 * delta;
+
+        // Target rotation offset based on mouse movement
+        // Invert X because moving mouse Right should make weapon lag Left (rotate Left)? 
+        // Or Point Left? Usually it rotates opposite to turn.
+        const targetRotX = -mouseDelta.y * swayAmount;
+        const targetRotY = -mouseDelta.x * swayAmount;
+
+        // Clamp
+        const clampedX = Math.max(-maxSway, Math.min(maxSway, targetRotX));
+        const clampedY = Math.max(-maxSway, Math.min(maxSway, targetRotY));
+
+        // Lerp current sway towards target (Smooth return to center when no input)
+        // If no input, target is 0.
+        // We accumulate or just set target? 
+        // Setting target directly based on frame delta is jerky if framerate varies.
+        // But Input provides accumulated delta since last read.
+
+        // This is a "velocity" based sway.
+        // Let's use a spring-like visible sway.
+        this.swayRotation.x += (clampedX - this.swayRotation.x) * smooth;
+        this.swayRotation.y += (clampedY - this.swayRotation.y) * smooth;
+
+
+        // 2. Bobbing (Movement)
+        const moveSpeed = Math.sqrt(moveVelocity.x * moveVelocity.x + moveVelocity.z * moveVelocity.z);
+        const isMoving = moveSpeed > 0.1 && (Math.abs(moveVelocity.y) < 0.1); // Grounded check-ish
+
+        let bobX = 0;
+        let bobY = 0;
+
+        if (isMoving) {
+            this.bobTime += delta * 12.0; // Bob frequency
+            const bobAmount = isScoped ? 0.001 : 0.01;
+            bobX = Math.cos(this.bobTime) * bobAmount;
+            bobY = Math.abs(Math.sin(this.bobTime)) * bobAmount;
+        } else {
+            // Reset bob smoothly
+            this.bobTime = 0;
+        }
+
+        // Apply transforms
+        // Rotation
+        this.handGroup.rotation.x = this.baseRotation.x + this.swayRotation.x;
+        this.handGroup.rotation.y = this.baseRotation.y + this.swayRotation.y;
+        this.handGroup.rotation.z = this.baseRotation.z; // Roll? Maybe slightly based on strafe
+
+        // Position (Bobbing)
+        this.handGroup.position.x = this.basePosition.x + bobX;
+        this.handGroup.position.y = this.basePosition.y + bobY;
+        this.handGroup.position.z = this.basePosition.z;
     }
 
     // Clean up resources

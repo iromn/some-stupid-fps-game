@@ -302,11 +302,7 @@ export class UIManager {
         const nameSpan = document.createElement('span');
         nameSpan.innerText = player.name;
 
-        // Health text in list
-        const healthSpan = document.createElement('span');
-        healthSpan.id = `player-list-hp-${player.playerId}`;
-        healthSpan.style.fontSize = '12px';
-        healthSpan.innerText = `${player.health}%`;
+        // Health text removed as per user request
 
         const leftSide = document.createElement('div');
         leftSide.style.display = 'flex';
@@ -315,7 +311,7 @@ export class UIManager {
         leftSide.appendChild(nameSpan);
 
         item.appendChild(leftSide);
-        item.appendChild(healthSpan);
+        // item.appendChild(healthSpan); // Removed
         list.appendChild(item);
     }
 
@@ -325,8 +321,7 @@ export class UIManager {
     }
 
     updatePlayerListHealth(id, health) {
-        const hpSpan = document.getElementById(`player-list-hp-${id}`);
-        if (hpSpan) hpSpan.innerText = `${health}%`;
+        // Disabled
     }
 
     // --- Leaderboard Methods ---
@@ -364,6 +359,36 @@ export class UIManager {
     flashDamage() {
         this.damageOverlay.style.opacity = '0.3';
         setTimeout(() => this.damageOverlay.style.opacity = '0', 100);
+    }
+
+    showKillFeed(killerName, victimName, isSelfInvolved) {
+        const feedContainer = document.getElementById('kill-feed');
+        if (!feedContainer) return;
+
+        const el = document.createElement('div');
+        el.style.cssText = `
+            background: rgba(0, 0, 0, 0.5);
+            color: #FFF;
+            padding: 5px 10px;
+            border-left: 4px solid ${isSelfInvolved ? '#FFD700' : '#FFF'};
+            animation: fadeIn 0.2s;
+            font-size: 14px;
+        `;
+
+        // Highlight logic
+        const killerHtml = `<span style="color: ${isSelfInvolved && killerName === 'YOU' ? '#00FF00' : '#FF4444'}">${killerName}</span>`;
+        const victimHtml = `<span style="color: ${isSelfInvolved && victimName === 'YOU' ? '#FF0000' : '#FFFFFF'}">${victimName}</span>`;
+
+        el.innerHTML = `${killerHtml} <span style="font-size:12px; color:#CCC;">🔫</span> ${victimHtml}`;
+
+        feedContainer.appendChild(el);
+
+        // Remove after 4 seconds
+        setTimeout(() => {
+            el.style.opacity = '0';
+            el.style.transition = 'opacity 0.5s';
+            setTimeout(() => el.remove(), 500);
+        }, 4000);
     }
 
     // --- Weapon Pickup Notification ---
