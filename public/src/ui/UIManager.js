@@ -7,6 +7,7 @@ export class UIManager {
         this.joinModal = document.getElementById('join-modal');
         this.confirmJoinBtn = document.getElementById('confirm-join-btn');
         this.cancelJoinBtn = document.getElementById('cancel-join-btn');
+        this.cancelJoinBtn = document.getElementById('cancel-join-btn');
         this.otpInputs = document.querySelectorAll('.otp-input');
 
         this.blocker = document.getElementById('blocker');
@@ -23,6 +24,11 @@ export class UIManager {
         this.pauseCloseBtn = document.getElementById('pause-close-btn');
         this.resumeGameBtn = document.getElementById('resume-game-btn');
         this.leaveGameBtn = document.getElementById('leave-game-btn');
+        this.pickupPrompt = document.getElementById('pickup-prompt');
+        this.pickupText = document.getElementById('pickup-text');
+        this.ammoUI = document.getElementById('ammo-ui');
+        this.ammoCount = document.getElementById('ammo-count');
+        this.scopeOverlay = document.getElementById('scope-overlay');
 
         // Sensitivity value (default 1.0)
         this.sensitivity = 1.0;
@@ -162,7 +168,6 @@ export class UIManager {
     showGameUI(roomCode) {
         this.menuDiv.style.display = 'none';
         this.blocker.style.display = 'none'; // Fix: Hide Pause Menu/Blocker by default
-        this.lobbyDisplay.innerText = `Lobby: ${roomCode}`;
 
         // Show game canvas and UI
         const canvas = document.querySelector('canvas');
@@ -171,7 +176,8 @@ export class UIManager {
         document.getElementById('health-ui').style.display = 'flex';
         document.getElementById('player-list').style.display = 'flex';
         document.getElementById('leaderboard').style.display = 'flex';
-        document.getElementById('lobby-display').style.display = 'block';
+
+        if (this.ammoUI) this.ammoUI.style.display = 'none'; // Default to hidden until weapon update
     }
 
     resetMenu(msg) {
@@ -190,7 +196,8 @@ export class UIManager {
         document.getElementById('health-ui').style.display = 'none';
         document.getElementById('player-list').style.display = 'none';
         document.getElementById('leaderboard').style.display = 'none';
-        document.getElementById('lobby-display').style.display = 'none';
+
+        if (this.ammoUI) this.ammoUI.style.display = 'none';
     }
 
     togglePauseMenu(show) {
@@ -227,6 +234,37 @@ export class UIManager {
     updateHealth(hp) {
         this.healthText.innerText = Math.max(0, hp);
         this.healthBarFill.style.width = `${Math.max(0, hp)}%`;
+    }
+
+    updateAmmo(current, max) {
+        if (!this.ammoUI) return;
+
+        if (max === null || max === undefined) {
+            // Infinite ammo
+            this.ammoUI.style.display = 'flex';
+            this.ammoCount.innerText = '∞';
+            this.ammoCount.style.color = '#FFF';
+        } else {
+            this.ammoUI.style.display = 'flex';
+            this.ammoCount.innerText = current;
+
+            // Visual feedback for low ammo
+            if (current <= 5) {
+                this.ammoCount.style.color = '#FF0000';
+            } else {
+                this.ammoCount.style.color = '#FFF';
+            }
+        }
+    }
+
+    toggleScope(show) {
+        if (!this.scopeOverlay) return;
+        this.scopeOverlay.style.display = show ? 'block' : 'none';
+
+        // Hide crosshair if scoped
+        if (this.crosshair) {
+            this.crosshair.style.display = show ? 'none' : 'block';
+        }
     }
 
     // --- Player List Methods ---
@@ -369,6 +407,16 @@ export class UIManager {
         document.body.appendChild(notification);
 
         setTimeout(() => notification.remove(), 2000);
+    }
+
+    // --- Pickup Prompt ---
+
+    togglePickupPrompt(show, weaponName = 'WEAPON') {
+        if (!this.pickupPrompt) return;
+        this.pickupPrompt.style.display = show ? 'flex' : 'none';
+        if (show && this.pickupText) {
+            this.pickupText.innerText = `PICK UP ${weaponName.toUpperCase()}`;
+        }
     }
 
     // --- Phase 8: Waiting Room ---

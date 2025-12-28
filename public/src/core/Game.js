@@ -249,6 +249,7 @@ export class Game {
 
         // Weapon pickup events
         this.network.on('pickupsState', (pickups) => {
+            console.log('[DEBUG] Received pickupsState:', pickups);
             // Initial pickups when game starts
             this.pickupManager.clear();
             pickups.forEach(p => this.pickupManager.addPickup(p));
@@ -287,7 +288,7 @@ export class Game {
 
     _handleShoot(raycaster, weaponPos, dir, weaponType) {
         // Create bullet tracer visual locally
-        this.effects.createBulletTracer(weaponPos, dir);
+        this.effects.createBulletTracer(weaponPos, dir, weaponType);
 
         // Notify server of shot for visuals (Broadcast)
         this.network.emit('playerShoot', {
@@ -344,11 +345,24 @@ export class Game {
         this.pickupManager.update(delta);
 
         // Check for nearby weapon pickups (only if game is active and controls locked)
+        // Check for nearby weapon pickups (only if game is active and controls locked)
         if (this.gameActive && this.player.controls.isLocked) {
             const playerPos = this.player.controls.getObject().position;
             const nearbyPickup = this.pickupManager.checkProximity(playerPos, 2.5);
+
             if (nearbyPickup) {
-                this.player.tryPickupWeapon(nearbyPickup.id);
+                // Show Prompt
+                this.ui.togglePickupPrompt(true, nearbyPickup.weaponType);
+
+                // Check for 'F' Key interaction
+                if (this.input.interact) {
+                    this.player.tryPickupWeapon(nearbyPickup.id);
+                    // Reset interact flag to prevent rapid firing multiple requests
+                    this.input.interact = false;
+                }
+            } else {
+                // Hide Prompt
+                this.ui.togglePickupPrompt(false);
             }
         }
 

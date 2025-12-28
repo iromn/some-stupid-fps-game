@@ -5,7 +5,7 @@ export const WEAPONS = {
     pistol: {
         id: 'pistol',
         name: 'Pistol',
-        damage: 15,
+        damage: 10,
         fireRate: 400,      // ms between shots
         range: 100,
         modelPath: '/assets/weapons/pistol.glb',
@@ -17,7 +17,13 @@ export const WEAPONS = {
         // Custom Arm Positioning (Pistol needs to be higher/closer)
         armPosition: { x: 0.2, y: -0.15, z: -0.3 },
         armRotation: { x: 0.05, y: -0.1, z: 0.02 },
-        sound: { freq: 600, type: 'square', duration: 0.1 }
+        sound: { freq: 600, type: 'square', duration: 0.1 },
+        maxAmmo: 30,
+        visuals: {
+            projectileType: 'tracer',
+            color: 0xFFCC00, // Golden Orange
+            flashColor: 0xFFCC00
+        }
     },
     ak47: {
         id: 'ak47',
@@ -33,12 +39,18 @@ export const WEAPONS = {
         // Standard "Good" Positioning
         armPosition: { x: 0.22, y: -0.22, z: -0.35 },
         armRotation: { x: 0.05, y: -0.1, z: 0.02 },
-        sound: { freq: 400, type: 'square', duration: 0.08 }
+        sound: { freq: 400, type: 'square', duration: 0.08 },
+        maxAmmo: 20,
+        visuals: {
+            projectileType: 'tracer',
+            color: 0xFF4500, // Orange Red
+            flashColor: 0xFF4500
+        }
     },
     sniper: {
         id: 'sniper',
         name: 'Sniper',
-        damage: 75,
+        damage: 100,
         fireRate: 1500,     // Slow but powerful
         range: 300,
         modelPath: '/assets/weapons/sniper.glb',
@@ -49,12 +61,18 @@ export const WEAPONS = {
         // Similar to AK but slightly heavier feel (lower)
         armPosition: { x: 0.22, y: -0.24, z: -0.35 },
         armRotation: { x: 0.05, y: -0.1, z: 0.02 },
-        sound: { freq: 200, type: 'sawtooth', duration: 0.2 }
+        sound: { freq: 200, type: 'sawtooth', duration: 0.2 },
+        maxAmmo: 5,
+        visuals: {
+            projectileType: 'tracer',
+            color: 0xFF0000, // Red
+            flashColor: 0xFF0000
+        }
     },
     slingshot: {
         id: 'slingshot',
         name: 'Slingshot',
-        damage: 25,
+        damage: 5,
         fireRate: 800,
         range: 60,
         modelPath: '/assets/weapons/slingshot.glb',
@@ -65,11 +83,17 @@ export const WEAPONS = {
         // Slingshot needs to be higher and more centered to see the fork, but simplified arm
         armPosition: { x: 0.25, y: -0.2, z: -0.3 },
         armRotation: { x: 0.1, y: -0.05, z: 0 },
-        sound: { freq: 800, type: 'sine', duration: 0.15 }
+        sound: { freq: 800, type: 'sine', duration: 0.15 },
+        maxAmmo: null,
+        visuals: {
+            projectileType: 'rock',
+            color: 0x888888,
+            scale: 0.2
+        }
     }
 };
 
-export const DEFAULT_WEAPON = 'pistol';
+export const DEFAULT_WEAPON = 'slingshot';
 
 // Helper to get weapon by id
 export function getWeapon(id) {
