@@ -16,7 +16,7 @@ export function createNameSprite(text, health = 100) {
     ctx.strokeStyle = 'black';
     ctx.strokeText(text, 512, 100);
 
-    ctx.fillStyle = 'white';
+    ctx.fillStyle = '#BBBBBB'; // Dimmer white for text (Anti-Bloom)
     ctx.fillText(text, 512, 100);
 
     ctx.shadowBlur = 0;
@@ -42,17 +42,18 @@ export function createNameSprite(text, health = 100) {
         ctx.closePath();
     }
 
-    ctx.fillStyle = 'white';
+    ctx.fillStyle = '#888888'; // Dimmer border
     roundRect(barX - 6, barY - 6, barW + 12, barH + 12, radius + 2);
     ctx.fill();
 
-    ctx.fillStyle = '#333';
+    ctx.fillStyle = '#222';
     roundRect(barX, barY, barW, barH, radius);
     ctx.fill();
 
     const healhPct = Math.max(0, health) / 100;
 
-    const col = healhPct > 0.5 ? '#00fa9a' : (healhPct > 0.2 ? '#ffd700' : '#ff4500');
+    // Use dimmer colors for health to avoid extreme bloom
+    const col = healhPct > 0.5 ? '#00BB77' : (healhPct > 0.2 ? '#CCAA00' : '#CC3300');
 
     ctx.fillStyle = col;
     ctx.save();
@@ -62,8 +63,8 @@ export function createNameSprite(text, health = 100) {
     ctx.restore();
 
     ctx.font = '60px Arial';
-    ctx.fillStyle = 'red';
-    ctx.strokeStyle = 'white';
+    ctx.fillStyle = '#BB2222';
+    ctx.strokeStyle = '#AAAAAA';
     ctx.lineWidth = 4;
     ctx.strokeText('❤', barX - 50, barY + 40);
     ctx.fillText('❤', barX - 50, barY + 40);

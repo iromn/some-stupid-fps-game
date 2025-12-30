@@ -446,6 +446,31 @@
     </div>
     <div id="crosshair"></div>
 
+    <!-- Minimal Pickup Prompt -->
+    <div id="pickup-prompt" style="
+        position: absolute;
+        top: 60%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: #FFFFFF;
+        font-family: 'Courier New', monospace;
+        font-size: 18px;
+        font-weight: bold;
+        text-shadow: 1px 1px 0 #000;
+        background: rgba(0, 0, 0, 0.4);
+        padding: 8px 16px;
+        border-radius: 4px;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        display: none;
+        pointer-events: none;
+        align-items: center;
+        gap: 8px;
+        z-index: 100;
+    ">
+        <span style="background: #FFFFFF; color: #000; padding: 2px 6px; border-radius: 2px;">F</span>
+        <span id="pickup-text">PICK UP WEAPON</span>
+    </div>
+
     <!-- Enlarged Health Bar (Bottom Left) -->
     <div id="health-ui">
         <div id="health-icon">❤️</div>
@@ -455,6 +480,64 @@
             </div>
             <div id="health-text">100</div>
         </div>
+    </div>
+
+    <!-- Ammo Display (Bottom Right) -->
+    <div id="ammo-ui" style="
+        position: absolute;
+        bottom: 30px;
+        right: 30px;
+        display: none; /* Hidden by default */
+        flex-direction: column;
+        align-items: flex-end;
+        font-family: 'Courier New', monospace;
+        color: #FFF;
+        text-shadow: 2px 2px 0 #000;
+        pointer-events: none;
+    ">
+        <div id="ammo-count" style="font-size: 48px; font-weight: bold; letter-spacing: 2px;">30</div>
+        <div id="ammo-label" style="font-size: 14px; opacity: 0.8; margin-top: -5px;">AMMO</div>
+    </div>
+
+    <!-- Sniper Scope Overlay -->
+    <div id="scope-overlay" style="
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: none;
+        pointer-events: none;
+        z-index: 50;
+    ">
+        <!-- Vignette -->
+        <div style="
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle, transparent 25%, black 65%);
+        "></div>
+        <!-- Crosshair Horizontal -->
+        <div style="
+            position: absolute;
+            top: 50%; left: 0; width: 100%; height: 2px;
+            background: black;
+            transform: translateY(-50%);
+        "></div>
+        <!-- Crosshair Vertical -->
+        <div style="
+            position: absolute;
+            left: 50%; top: 0; width: 2px; height: 100%;
+            background: black;
+            transform: translateX(-50%);
+        "></div>
+        <!-- Red Dot -->
+        <div style="
+            position: absolute;
+            left: 50%; top: 50%; width: 4px; height: 4px;
+            background: red;
+            transform: translate(-50%, -50%);
+            border-radius: 50%;
+        "></div>
     </div>
 
     <!-- Player List (Top Left) -->
@@ -469,17 +552,39 @@
         <div id="leaderboard-items"></div>
     </div>
 
+    <!-- Kill Feed (Below Leaderboard) -->
+    <div id="kill-feed" style="
+        position: absolute;
+        top: 200px;
+        right: 20px;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 5px;
+        pointer-events: none;
+        z-index: 20;
+        font-family: 'Courier New', monospace;
+        font-weight: bold;
+        text-shadow: 1px 1px 0 #000;
+    "></div>
+
     <!-- Click to Start Overlay (shown after countdown) -->
     <div id="click-to-start"
         style="position:absolute; top:0; left:0; width:100%; height:100%; background-color:rgba(0,0,0,0.5); display:none; flex-direction:column; justify-content:center; align-items:center; z-index:55; cursor:pointer;">
-        <div style="font-size: 48px; color: #00ff00; font-family: 'Courier New', monospace; font-weight: 900; text-shadow: 0 0 20px #00ff00, 4px 4px 0 #000; text-transform: uppercase; animation: pulse 1s infinite alternate;">
+        <div
+            style="font-size: 48px; color: #00ff00; font-family: 'Courier New', monospace; font-weight: 900; text-shadow: 0 0 20px #00ff00, 4px 4px 0 #000; text-transform: uppercase; animation: pulse 1s infinite alternate;">
             Click to Play!
         </div>
     </div>
     <style>
         @keyframes pulse {
-            from { transform: scale(1); }
-            to { transform: scale(1.05); }
+            from {
+                transform: scale(1);
+            }
+
+            to {
+                transform: scale(1.05);
+            }
         }
     </style>
 
@@ -488,20 +593,26 @@
         style="position:absolute; top:0; left:0; width:100%; height:100%; background-color:rgba(0,0,0,0.7); color:#fff; display:none; flex-direction:column; justify-content:center; align-items:center; font-size:24px; font-family:'Courier New', monospace; z-index:50; pointer-events:auto;">
 
         <!-- Pause Menu Card (Comic Style) -->
-        <div id="pause-menu-card" style="background: #D3D3D3; padding: 40px 60px; border: 6px solid #000; box-shadow: 10px 10px 0 #000; position: relative; min-width: 400px;">
+        <div id="pause-menu-card"
+            style="background: #D3D3D3; padding: 40px 60px; border: 6px solid #000; box-shadow: 10px 10px 0 #000; position: relative; min-width: 400px;">
 
             <!-- Close Button (X) -->
-            <button id="pause-close-btn" style="position: absolute; top: -20px; right: -20px; width: 50px; height: 50px; background: #FF4444; border: 4px solid #000; font-size: 28px; font-weight: 900; cursor: pointer; box-shadow: 4px 4px 0 #000; font-family: 'Courier New', monospace; color: #FFF; display: flex; justify-content: center; align-items: center;">X</button>
+            <button id="pause-close-btn"
+                style="position: absolute; top: -20px; right: -20px; width: 50px; height: 50px; background: #FF4444; border: 4px solid #000; font-size: 28px; font-weight: 900; cursor: pointer; box-shadow: 4px 4px 0 #000; font-family: 'Courier New', monospace; color: #FFF; display: flex; justify-content: center; align-items: center;">X</button>
 
             <!-- Title -->
-            <h2 style="font-size: 42px; color: #000; text-align: center; margin-bottom: 30px; text-transform: uppercase; font-weight: 900; text-shadow: 2px 2px 0 #FFF; letter-spacing: 3px;">PAUSED</h2>
+            <h2
+                style="font-size: 42px; color: #000; text-align: center; margin-bottom: 30px; text-transform: uppercase; font-weight: 900; text-shadow: 2px 2px 0 #FFF; letter-spacing: 3px;">
+                PAUSED</h2>
 
             <!-- Settings Container -->
             <div style="display: flex; flex-direction: column; gap: 25px;">
 
                 <!-- Master Volume -->
                 <div style="background: #FFF; padding: 15px 20px; border: 4px solid #000; box-shadow: 4px 4px 0 #000;">
-                    <label for="volume-slider" style="font-size: 18px; font-weight: 900; color: #000; text-transform: uppercase;">Master Volume</label>
+                    <label for="volume-slider"
+                        style="font-size: 18px; font-weight: 900; color: #000; text-transform: uppercase;">Master
+                        Volume</label>
                     <div style="display: flex; align-items: center; gap: 15px; margin-top: 10px;">
                         <span style="font-size: 20px;">🔈</span>
                         <input type="range" id="volume-slider" min="0" max="1" step="0.1" value="0.5"
@@ -512,7 +623,9 @@
 
                 <!-- Mouse Sensitivity -->
                 <div style="background: #FFF; padding: 15px 20px; border: 4px solid #000; box-shadow: 4px 4px 0 #000;">
-                    <label for="sensitivity-slider" style="font-size: 18px; font-weight: 900; color: #000; text-transform: uppercase;">Mouse Sensitivity: <span id="sensitivity-value" style="color: #666;">1.0</span></label>
+                    <label for="sensitivity-slider"
+                        style="font-size: 18px; font-weight: 900; color: #000; text-transform: uppercase;">Mouse
+                        Sensitivity: <span id="sensitivity-value" style="color: #666;">1.0</span></label>
                     <div style="display: flex; align-items: center; gap: 15px; margin-top: 10px;">
                         <span style="font-size: 14px; color: #999;">0.1</span>
                         <input type="range" id="sensitivity-slider" min="0.1" max="2" step="0.1" value="1"
@@ -525,12 +638,17 @@
 
             <!-- Buttons -->
             <div style="display: flex; flex-direction: column; gap: 15px; margin-top: 30px;">
-                <button id="resume-game-btn" style="padding: 15px 30px; font-size: 20px; background: #7CFC00; border: 4px solid #000; font-family: 'Courier New', monospace; font-weight: 900; cursor: pointer; box-shadow: 5px 5px 0 #000; text-transform: uppercase; width: 100%;">RESUME GAME</button>
-                <button id="leave-game-btn" style="padding: 15px 30px; font-size: 20px; background: #FF4444; color: #FFF; border: 4px solid #000; font-family: 'Courier New', monospace; font-weight: 900; cursor: pointer; box-shadow: 5px 5px 0 #000; text-transform: uppercase; width: 100%;">LEAVE LOBBY</button>
+                <button id="resume-game-btn"
+                    style="padding: 15px 30px; font-size: 20px; background: #7CFC00; border: 4px solid #000; font-family: 'Courier New', monospace; font-weight: 900; cursor: pointer; box-shadow: 5px 5px 0 #000; text-transform: uppercase; width: 100%;">RESUME
+                    GAME</button>
+                <button id="leave-game-btn"
+                    style="padding: 15px 30px; font-size: 20px; background: #FF4444; color: #FFF; border: 4px solid #000; font-family: 'Courier New', monospace; font-weight: 900; cursor: pointer; box-shadow: 5px 5px 0 #000; text-transform: uppercase; width: 100%;">LEAVE
+                    LOBBY</button>
             </div>
 
             <!-- Controls Hint -->
-            <p style="text-align: center; margin-top: 20px; font-size: 14px; color: #666; font-weight: bold;">Press ESC or P to close</p>
+            <p style="text-align: center; margin-top: 20px; font-size: 14px; color: #666; font-weight: bold;">Press ESC
+                or P to close</p>
         </div>
     </div>
 

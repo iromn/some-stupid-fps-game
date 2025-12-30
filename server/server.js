@@ -26,7 +26,14 @@ io.on('connection', (socket) => {
 
       socket.emit('gameJoined', { roomCode, assignedColor: player.color, x: player.x, z: player.z, hostId });
       socket.emit('currentPlayers', roomPlayers);
+      socket.emit('currentPlayers', roomPlayers);
       socket.to(roomCode).emit('newPlayer', player);
+
+      // Send existing pickups state (Fix for visibility on rejoin/late join)
+      const currentPickups = weaponManager.getActivePickups(roomCode);
+      if (currentPickups.length > 0) {
+        socket.emit('pickupsState', currentPickups);
+      }
 
       // Phase 8: Update Waiting Room (include hostId)
       io.to(roomCode).emit('roomUpdate', { players: roomManager.getRoomPlayers(roomCode), hostId });
@@ -58,6 +65,7 @@ io.on('connection', (socket) => {
         // Initialize weapon pickups for this room
         weaponManager.initializePickups(p.room);
         const pickups = weaponManager.getActivePickups(p.room);
+        console.log(`[DEBUG] Emitting pickupsState to room ${p.room} with ${pickups.length} items`);
         io.to(p.room).emit('pickupsState', pickups);
 
         // Broadcast Countdown

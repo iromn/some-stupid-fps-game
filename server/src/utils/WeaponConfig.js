@@ -4,34 +4,38 @@ const WEAPONS = {
     pistol: {
         id: 'pistol',
         name: 'Pistol',
-        damage: 15,
+        damage: 10,
         fireRate: 400,      // ms between shots
-        range: 100          // max effective range
+        range: 100,         // max effective range
+        maxAmmo: 30
     },
     ak47: {
         id: 'ak47',
         name: 'AK-47',
         damage: 20,
         fireRate: 150,      // Full auto
-        range: 80
+        range: 80,
+        maxAmmo: 20
     },
     sniper: {
         id: 'sniper',
         name: 'Sniper',
-        damage: 75,
+        damage: 100,
         fireRate: 1500,     // Slow but powerful
-        range: 300          // Long range
+        range: 300,         // Long range
+        maxAmmo: 5
     },
     slingshot: {
         id: 'slingshot',
         name: 'Slingshot',
-        damage: 25,
+        damage: 5,
         fireRate: 800,
-        range: 60           // Short range
+        range: 60,          // Short range
+        maxAmmo: null       // Infinite
     }
 };
 
-const DEFAULT_WEAPON = 'pistol';
+const DEFAULT_WEAPON = 'slingshot';
 
 const PICKUP_RESPAWN_TIME = 45000;  // 45 seconds
 
@@ -39,9 +43,9 @@ const PICKUP_RESPAWN_TIME = 45000;  // 45 seconds
 const PICKUP_LOCATIONS = [
     // Tier 1 (Ground Level Y=1.5)
     { x: 50, y: 1.5, z: 0, weaponType: 'ak47' },
-    { x: -50, y: 1.5, z: 0, weaponType: 'slingshot' },
+    { x: -50, y: 1.5, z: 0, weaponType: 'pistol' },
     { x: 0, y: 1.5, z: 50, weaponType: 'ak47' },
-    { x: 0, y: 1.5, z: -50, weaponType: 'slingshot' },
+    { x: 0, y: 1.5, z: -50, weaponType: 'pistol' },
     // Tier 2 (Ice Ring Y=26)
     { x: 80, y: 26.5, z: 0, weaponType: 'sniper' },
     { x: -80, y: 26.5, z: 0, weaponType: 'sniper' },

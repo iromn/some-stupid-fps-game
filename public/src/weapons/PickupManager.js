@@ -38,20 +38,13 @@ export class PickupManager {
 
     // Check if player is near any pickup
     checkProximity(playerPosition, range = 2.0) {
-        const now = performance.now();
-
-        // Cooldown between pickup attempts
-        if (now - this.lastPickupAttempt < this.pickupCooldown) {
-            return null;
-        }
+        // Removed cooldown check to allow continuous UI prompt
 
         for (const pickup of Object.values(this.pickups)) {
             if (pickup.isActive && pickup.isInRange(playerPosition, range)) {
-                this.lastPickupAttempt = now;
                 return pickup;
             }
         }
-
         return null;
     }
 

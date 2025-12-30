@@ -190,11 +190,27 @@ export class Game {
                 if (data.attackerId && data.attackerId !== this.network.id) {
                     this.audio.playHit(); // Being hit sound
                 }
+            } else if (data.attackerId === this.network.id) {
+                // I hit someone
+                this.audio.playHitMarker();
+                this.ui.showHitMarker();
             }
         });
 
         this.network.on('playerKilled', (data) => {
-            // data: { victimId, killerId }
+            // data: { victimId, killerId, killerKills }
+
+            // Update local kill count for leaderboard
+            if (this.allPlayers && this.allPlayers[data.killerId]) {
+                this.allPlayers[data.killerId].kills = data.killerKills;
+                this.ui.updateLeaderboard(this.allPlayers);
+
+                // Show Kill Feed
+                const killerName = data.killerId === this.network.id ? 'YOU' : (this.allPlayers[data.killerId]?.name || 'Unknown');
+                const victimName = data.victimId === this.network.id ? 'YOU' : (this.allPlayers[data.victimId]?.name || 'Unknown');
+                this.ui.showKillFeed(killerName, victimName, (data.killerId === this.network.id || data.victimId === this.network.id));
+            }
+
             if (data.victimId === this.network.id) {
                 document.getElementById('death-screen').style.display = 'flex'; // UI Manager should handle this
                 this.audio.playDie();
@@ -249,6 +265,7 @@ export class Game {
 
         // Weapon pickup events
         this.network.on('pickupsState', (pickups) => {
+            console.log('[DEBUG] Received pickupsState:', pickups);
             // Initial pickups when game starts
             this.pickupManager.clear();
             pickups.forEach(p => this.pickupManager.addPickup(p));
@@ -287,7 +304,7 @@ export class Game {
 
     _handleShoot(raycaster, weaponPos, dir, weaponType) {
         // Create bullet tracer visual locally
-        this.effects.createBulletTracer(weaponPos, dir);
+        this.effects.createBulletTracer(weaponPos, dir, weaponType);
 
         // Notify server of shot for visuals (Broadcast)
         this.network.emit('playerShoot', {
@@ -344,11 +361,24 @@ export class Game {
         this.pickupManager.update(delta);
 
         // Check for nearby weapon pickups (only if game is active and controls locked)
+        // Check for nearby weapon pickups (only if game is active and controls locked)
         if (this.gameActive && this.player.controls.isLocked) {
             const playerPos = this.player.controls.getObject().position;
             const nearbyPickup = this.pickupManager.checkProximity(playerPos, 2.5);
+
             if (nearbyPickup) {
-                this.player.tryPickupWeapon(nearbyPickup.id);
+                // Show Prompt
+                this.ui.togglePickupPrompt(true, nearbyPickup.weaponType);
+
+                // Check for 'F' Key interaction
+                if (this.input.interact) {
+                    this.player.tryPickupWeapon(nearbyPickup.id);
+                    // Reset interact flag to prevent rapid firing multiple requests
+                    this.input.interact = false;
+                }
+            } else {
+                // Hide Prompt
+                this.ui.togglePickupPrompt(false);
             }
         }
 

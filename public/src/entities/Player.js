@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
 import { WeaponManager } from '../weapons/WeaponManager.js';
-import { DEFAULT_WEAPON } from '../weapons/WeaponDefinitions.js';
+import { DEFAULT_WEAPON, WEAPONS } from '../weapons/WeaponDefinitions.js';
 
 export class Player {
     constructor(camera, domElement, scene, physics, input, network, audio, ui) {
@@ -24,6 +24,8 @@ export class Player {
 
         // Game state - tracks if player has started playing (first successful pointer lock)
         this.gameStarted = false;
+        this.isScoped = false;
+        this.rightClickPressed = false; // To track toggle
 
         // Weapon
         this._initWeapon();
@@ -38,15 +40,29 @@ export class Player {
 
         // Load weapons and equip default
         this.weaponManager.loadWeapons().then(() => {
-            this.weaponManager.equipWeapon(DEFAULT_WEAPON);
+            // Use switchWeapon to ensure ammo is initialized correctly
+            this.switchWeapon(DEFAULT_WEAPON);
         });
     }
 
+    // Switch to a different weapon
     // Switch to a different weapon
     switchWeapon(weaponType) {
         if (this.weaponManager.isLoaded(weaponType)) {
             this.weaponManager.equipWeapon(weaponType);
             this.currentWeaponType = weaponType;
+
+            // Set Ammo
+            const weaponDef = WEAPONS[weaponType];
+            this.currentMaxAmmo = weaponDef ? weaponDef.maxAmmo : null;
+            this.currentAmmo = this.currentMaxAmmo; // Full refill on pickup/switch
+
+            // Update UI
+            if (this.ui) this.ui.updateAmmo(this.currentAmmo, this.currentMaxAmmo);
+
+            // Force Unscope
+            this.toggleScope(false);
+
             this.network.emit('weaponSwitch', { weaponType });
         }
     }
@@ -119,9 +135,11 @@ export class Player {
         }
 
         // Shooting
-        document.addEventListener('mousedown', () => {
+        document.addEventListener('mousedown', (e) => {
             if (!this.controls.isLocked) return;
-            this.shoot();
+            if (e.button === 0) { // Only Left Click
+                this.shoot();
+            }
         });
     }
 
@@ -153,6 +171,16 @@ export class Player {
 
     update(delta, obstacles) {
         if (!this.controls.isLocked) return;
+
+        // Scope Logic
+        if (this.input.rightClick && !this.rightClickPressed) {
+            this.rightClickPressed = true;
+            if (this.currentWeaponType === 'sniper') {
+                this.toggleScope();
+            }
+        } else if (!this.input.rightClick) {
+            this.rightClickPressed = false;
+        }
 
         // Physics Constants
         const speed = 400.0 * delta; // Reduced from 600
@@ -286,7 +314,11 @@ export class Player {
         controlObj.position.y += this.velocity.y * delta;
 
         // VOID CHECK
-        if (controlObj.position.y < -30) {
+        if (controlObj.position.y < -30 || isNaN(controlObj.position.y)) {
+            console.error('[PLAYER] Respawning! reason:',
+                isNaN(controlObj.position.y) ? 'NaN Position' : `Fell into Void (Y=${controlObj.position.y})`,
+                'Vel:', this.velocity.clone()
+            );
             // Respawn safe
             this.velocity.set(0, 0, 0);
             controlObj.position.set(0, 10, 0);
@@ -305,7 +337,13 @@ export class Player {
         // However, if we clip *through* geometry, correct origin matters.
 
         const rayOrigin = controlObj.position.clone();
-        // rayOrigin.y += 0.0; // Already at eye level?
+
+        // Fix Tunneling: If falling fast, start raycast from higher up
+        // This ensures we catch the floor even if we passed it in this frame
+        const verticalShift = Math.max(0, -this.velocity.y * delta);
+        if (verticalShift > 0) {
+            rayOrigin.y += verticalShift;
+        }
 
         this.raycaster.set(rayOrigin, new THREE.Vector3(0, -1, 0));
 
@@ -326,7 +364,9 @@ export class Player {
             // Tolerance +0.2 -> 1.8 max dist.
             // If delta Y is large, we might need more range?
             // Let's increase range to catch fast falls, but snap correctly.
-            const maxGroundDist = 2.5; // Increased from 1.65 to catch fast falls/slopes
+            // We added verticalShift to origin, so we must add it to valid distance too.
+            const verticalShift = Math.max(0, -this.velocity.y * delta);
+            const maxGroundDist = 2.5 + verticalShift;
 
             if (hit.distance < maxGroundDist && this.velocity.y <= 0) {
                 onGround = true;
@@ -384,21 +424,69 @@ export class Player {
             z: controlObj.position.z,
             rotation: controlObj.rotation.y
         });
+
+        // Update Weapon Sway
+        const mouseDelta = this.input.getMouseDelta(); // {x, y}
+        this.weaponManager.updateSway(mouseDelta, this.velocity, delta, this.isScoped);
+    }
+
+    toggleScope(force = null) {
+        if (force !== null) {
+            this.isScoped = force;
+        } else {
+            this.isScoped = !this.isScoped;
+        }
+
+        if (this.ui) this.ui.toggleScope(this.isScoped);
+
+        // Zoom
+        this.camera.fov = this.isScoped ? 20 : 60; // Default 60? Default ThreeJS usually 75?
+        // Let's assume default 75 or whatever camera was initialized with. 
+        // Wait, where is camera initialized? Game.js. 
+        // I should store default FOV.
+        if (!this.defaultFov) this.defaultFov = this.camera.fov;
+
+        this.camera.fov = this.isScoped ? 20 : this.defaultFov;
+        this.camera.updateProjectionMatrix();
     }
 
     shoot() {
         // Check fire rate
         if (!this.weaponManager.canFire()) return;
 
+        // Ammo Logic
+        if (this.currentMaxAmmo !== null && this.currentMaxAmmo !== undefined) {
+            if (this.currentAmmo <= 0) {
+                this.switchWeapon(DEFAULT_WEAPON);
+                return;
+            }
+            this.currentAmmo--;
+            if (this.ui) this.ui.updateAmmo(this.currentAmmo, this.currentMaxAmmo);
+        }
+
         // Get weapon position for visual effects
         const weaponPos = new THREE.Vector3();
         this.weaponManager.getWeaponWorldPosition(weaponPos);
         const dir = new THREE.Vector3();
         this.camera.getWorldDirection(dir);
-        weaponPos.addScaledVector(dir, 0.5);
+
+        // Dynamic Muzzle Offset
+        const weaponDef = this.weaponManager.getCurrentWeaponDef();
+        const offset = weaponDef.muzzleOffset || 0.5;
+
+        weaponPos.addScaledVector(dir, offset);
 
         // Play weapon-specific sound
         this.weaponManager.playShootSound();
+
+        // Switch back if empty (after firing last shot)
+        if (this.currentMaxAmmo !== null && this.currentAmmo <= 0) {
+            setTimeout(() => {
+                if (this.currentAmmo <= 0) { // Double check in case of race condition
+                    this.switchWeapon(DEFAULT_WEAPON);
+                }
+            }, 250); // Small delay to let the shot sound/anim play
+        }
         this.weaponManager.recordFire();
 
         // Logic
@@ -409,4 +497,6 @@ export class Player {
             this.onShootRequest(this.raycaster, weaponPos, dir, this.currentWeaponType);
         }
     }
+
+
 }

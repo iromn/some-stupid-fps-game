@@ -42,7 +42,7 @@ class PlayerManager {
         if (p) {
             p.health = 100;
             p.isDead = false;
-            p.weaponType = DEFAULT_WEAPON;  // Reset to pistol on respawn
+            p.weaponType = DEFAULT_WEAPON;  // Reset to default on respawn
         }
     }
 

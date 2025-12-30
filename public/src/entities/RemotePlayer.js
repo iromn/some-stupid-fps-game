@@ -15,6 +15,10 @@ export class RemotePlayer {
         this.mesh = createPlayerMesh(data.playerId, data.x, data.y, data.z, data.color, data.name);
         this.mesh.userData.playerName = data.name;
 
+        // Scale up the player model to make them easier to spot
+        const PLAYER_SCALE = 1.4;
+        this.mesh.scale.set(PLAYER_SCALE, PLAYER_SCALE, PLAYER_SCALE);
+
         if (data.health !== undefined) {
             updateNameTag(this.mesh, data.name, data.health);
         }
