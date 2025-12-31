@@ -19,6 +19,7 @@ export const WEAPONS = {
         armPosition: { x: 0.2, y: -0.15, z: -0.3 },
         armRotation: { x: 0.05, y: -0.1, z: 0.02 },
         sound: { freq: 600, type: 'square', duration: 0.1 },
+        soundPath: '/assets/sounds/pistol.mp3', // Custom Sound
         maxAmmo: 30,
         visuals: {
             projectileType: 'tracer',
@@ -42,6 +43,7 @@ export const WEAPONS = {
         armPosition: { x: 0.22, y: -0.22, z: -0.35 },
         armRotation: { x: 0.05, y: -0.1, z: 0.02 },
         sound: { freq: 400, type: 'square', duration: 0.08 },
+        soundPath: '/assets/sounds/ak47.mp3', // Custom Sound
         maxAmmo: 20,
         visuals: {
             projectileType: 'tracer',
@@ -65,6 +67,7 @@ export const WEAPONS = {
         armPosition: { x: 0.22, y: -0.24, z: -0.35 },
         armRotation: { x: 0.05, y: -0.1, z: 0.02 },
         sound: { freq: 200, type: 'sawtooth', duration: 0.2 },
+        soundPath: '/assets/sounds/sniper.mp3', // Custom Sound
         maxAmmo: 5,
         visuals: {
             projectileType: 'tracer',
@@ -88,6 +91,7 @@ export const WEAPONS = {
         armPosition: { x: 0.25, y: -0.2, z: -0.3 },
         armRotation: { x: 0.1, y: -0.05, z: 0 },
         sound: { freq: 800, type: 'sine', duration: 0.15 },
+        soundPath: '/assets/sounds/slingshot.mp3',
         maxAmmo: null,
         visuals: {
             projectileType: 'rock',

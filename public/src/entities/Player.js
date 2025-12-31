@@ -397,7 +397,8 @@ export class Player {
             if (surfaceType === 'slime') {
                 this.velocity.y = 350;
                 this.canJump = false;
-                this.audio.playShoot();
+                // Play Bounce Sound (low freq sine)
+                this.audio.playTone(150, 'sine', 0.3, 0.3);
             } else {
                 this.velocity.y = 0;
                 controlObj.position.y = groundY;
