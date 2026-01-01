@@ -14,13 +14,17 @@ export class Renderer {
         this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         this.camera.position.y = 1.6;
 
-        this.renderer = new THREE.WebGLRenderer({ antialias: false }); // Antialias off for post-processing performance
+        this.renderer = new THREE.WebGLRenderer({
+            antialias: false,
+            powerPreference: "high-performance" // Hint to browser
+        });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        // Optimization: Cap pixel ratio to 1.5 (Retina screens usually 2 or 3, killing FPS)
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        this.renderer.toneMappingExposure = 1.0; // Slightly lower exposure for boom
+        this.renderer.toneMappingExposure = 1.0;
         document.body.appendChild(this.renderer.domElement);
 
         this._initLights();
@@ -35,9 +39,12 @@ export class Renderer {
         const renderPass = new RenderPass(this.scene, this.camera);
         this.composer.addPass(renderPass);
 
+        // Optimization: Half-resolution bloom for better performance
+        const bloomVec = new THREE.Vector2(window.innerWidth / 2, window.innerHeight / 2);
+
         // Resolution, Strength, Radius, Threshold
         const bloomPass = new UnrealBloomPass(
-            new THREE.Vector2(window.innerWidth, window.innerHeight),
+            bloomVec,
             1.5,  // Strength
             0.4,  // Radius
             0.85  // Threshold
@@ -63,8 +70,9 @@ export class Renderer {
         dirLight.position.set(80, 120, 60);
         dirLight.castShadow = true;
 
-        dirLight.shadow.mapSize.width = 4096; // Higher quality shadows
-        dirLight.shadow.mapSize.height = 4096;
+        // Optimization: Reduced from 4096 to 2048
+        dirLight.shadow.mapSize.width = 2048;
+        dirLight.shadow.mapSize.height = 2048;
         dirLight.shadow.camera.near = 0.5;
         dirLight.shadow.camera.far = 500;
         dirLight.shadow.camera.left = -150;

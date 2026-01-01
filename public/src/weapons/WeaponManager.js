@@ -279,14 +279,9 @@ export class WeaponManager {
         if (!this.audio || !this.currentWeaponType) return;
 
         const weaponDef = getWeapon(this.currentWeaponType);
-        if (weaponDef.sound) {
-            this.audio.playTone(
-                weaponDef.sound.freq,
-                weaponDef.sound.type,
-                weaponDef.sound.duration,
-                0.05
-            );
-        }
+
+        // Use the smart playShoot method in Audio.js which handles Custom File vs Synth Fallback
+        this.audio.playShoot(this.currentWeaponType, weaponDef);
     }
 
     // Get current weapon type

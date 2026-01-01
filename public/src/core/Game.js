@@ -10,12 +10,21 @@ import { Player } from '../entities/Player.js';
 import { EntityManager } from '../entities/EntityManager.js';
 import { Effects } from '../graphics/Effects.js';
 import { PickupManager } from '../weapons/PickupManager.js';
+import { WEAPONS } from '../weapons/WeaponDefinitions.js';
 
 export class Game {
     constructor() {
         this.renderer = new Renderer();
         this.input = new Input();
         this.audio = new Audio();
+
+        // Preload custom weapon sounds
+        Object.values(WEAPONS).forEach(w => {
+            if (w.soundPath) {
+                this.audio.loadSound(w.id, w.soundPath);
+            }
+        });
+
         this.network = new Network();
         this.ui = new UIManager();
 
