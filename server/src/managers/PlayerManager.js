@@ -83,6 +83,31 @@ class PlayerManager {
         }
         return 0;
     }
+
+    resetStats(roomCode) {
+        // Safe Angels logic reused
+        const safeAngles = [30, 90, 150, 210, 270, 330];
+
+        Object.values(this.players).forEach(p => {
+            if (p.room === roomCode) {
+                p.kills = 0;
+                p.deaths = 0;
+                p.health = 100;
+                p.isDead = false;
+
+                // Random Respawn
+                const degrees = safeAngles[Math.floor(Math.random() * safeAngles.length)];
+                const baseAngle = degrees * (Math.PI / 180);
+                const angle = baseAngle + (Math.random() * 0.5 - 0.25);
+                const radius = 100 + Math.random() * 20;
+
+                p.x = Math.cos(angle) * radius;
+                p.y = 5;
+                p.z = Math.sin(angle) * radius;
+                p.rotation = 0;
+            }
+        });
+    }
 }
 
 module.exports = new PlayerManager();

@@ -56,16 +56,20 @@ io.on('connection', (socket) => {
     }
   });
 
+  const GAME_DURATION = 150 * 1000; // 2.5 Minutes
+
   // Phase 8: Start Game (Host Only)
   socket.on('startGame', () => {
     const p = playerManager.getPlayer(socket.id);
     if (p) {
       const result = roomManager.startGame(p.room, socket.id);
       if (result.success) {
+        // Reset Stats for New Game
+        playerManager.resetStats(p.room);
+
         // Initialize weapon pickups for this room
         weaponManager.initializePickups(p.room);
         const pickups = weaponManager.getActivePickups(p.room);
-        console.log(`[DEBUG] Emitting pickupsState to room ${p.room} with ${pickups.length} items`);
         io.to(p.room).emit('pickupsState', pickups);
 
         // Broadcast Countdown
@@ -74,10 +78,42 @@ io.on('connection', (socket) => {
 
         io.to(p.room).emit('countdownStart', { startTime });
 
-        // Server-side State Transition
+        // Server-side State Transition & Game Timer
         setTimeout(() => {
           roomManager.setPlaying(p.room);
-          io.to(p.room).emit('gameStart'); // Unlock controls
+          // Send duration so client calculates local end time (avoids clock sync issues)
+          const currentPlayers = roomManager.getRoomPlayers(p.room);
+          io.to(p.room).emit('gameStart', { duration: GAME_DURATION, players: currentPlayers }); // Unlock controls and sync pos
+
+          // Schedule Game End
+          setTimeout(() => {
+            const roomPlayers = roomManager.getRoomPlayers(p.room);
+            const playersList = Object.values(roomPlayers);
+
+            // Determine Winner (Most Kills)
+            // Sort by kills descending
+            playersList.sort((a, b) => (b.kills || 0) - (a.kills || 0));
+
+            const winner = playersList.length > 0 ? playersList[0] : null;
+
+            console.log(`[DEBUG] Game End. Room: ${p.room}, Players: ${playersList.length}, Winner: ${winner ? winner.name : 'None'}`);
+
+            io.to(p.room).emit('gameFinished', {
+              winner: winner,
+              leaderboard: playersList
+            });
+
+            // Fallback: Emit to host specifically
+            socket.emit('gameFinished', {
+              winner: winner,
+              leaderboard: playersList
+            });
+
+            // Reset Room State
+            roomManager.resetRoom(p.room);
+
+          }, GAME_DURATION);
+
         }, countdownTime + 500);
       } else {
         socket.emit('gameError', result.error);

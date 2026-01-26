@@ -101,6 +101,12 @@ class RoomManager {
             this.roomStates[roomCode] = 'playing';
         }
     }
+
+    resetRoom(roomCode) {
+        if (this.rooms[roomCode]) {
+            this.roomStates[roomCode] = 'waiting';
+        }
+    }
 }
 
 module.exports = new RoomManager();

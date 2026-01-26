@@ -177,6 +177,9 @@ export class UIManager {
         document.getElementById('player-list').style.display = 'flex';
         document.getElementById('leaderboard').style.display = 'flex';
 
+        // Show Timer
+        this.toggleGameTimer(true);
+
         if (this.ammoUI) this.ammoUI.style.display = 'none'; // Default to hidden until weapon update
     }
 
@@ -590,5 +593,85 @@ export class UIManager {
     onLeaveLobby(callback) {
         if (!this.leaveLobbyBtn) this._initWaitingRoom();
         this.leaveLobbyBtn.addEventListener('click', callback);
+    }
+
+    // --- Win Condition UI ---
+
+    updateGameTimer(timeLeft) {
+        const timerDiv = document.getElementById('game-timer');
+        if (!timerDiv) return;
+
+        if (timeLeft < 0) timeLeft = 0;
+        const totalSeconds = Math.ceil(timeLeft / 1000);
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        timerDiv.innerText = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+
+        if (totalSeconds <= 10) {
+            timerDiv.style.color = '#FF0000';
+            timerDiv.style.textShadow = '0 0 10px #FF0000';
+        } else {
+            timerDiv.style.color = '#FFF';
+            timerDiv.style.textShadow = '3px 3px 0 #000';
+        }
+    }
+
+    toggleGameTimer(show) {
+        const timerDiv = document.getElementById('game-timer');
+        if (timerDiv) timerDiv.style.display = show ? 'block' : 'none';
+    }
+
+    showVictoryScreen(winner, leaderboard) {
+        console.log("UIManager: Showing Victory Screen", winner);
+        const screen = document.getElementById('victory-screen');
+        const winnerDisplay = document.getElementById('winner-display');
+
+        const winnerName = winner ? winner.name : "NO ONE";
+        const winnerKills = winner ? winner.kills : 0;
+
+        winnerDisplay.innerText = `WINNER:\n${winnerName}\n(${winnerKills} KILLS)`;
+        winnerDisplay.style.whiteSpace = 'pre-wrap';
+        winnerDisplay.style.textAlign = 'center';
+
+        // Force hide everything else
+        // Force hide everything else
+        if (this.menuDiv) this.menuDiv.style.display = 'none';
+        if (this.blocker) this.blocker.style.display = 'none';
+
+        if (!this.waitingRoomDiv) this.waitingRoomDiv = document.getElementById('waiting-room');
+        if (this.waitingRoomDiv) this.waitingRoomDiv.style.display = 'none';
+
+        const gameUI = document.getElementById('game-ui');
+        if (gameUI) gameUI.style.display = 'none';
+
+        screen.style.display = 'flex';
+
+        document.getElementById('health-ui').style.display = 'none';
+        document.getElementById('ammo-ui').style.display = 'none';
+        document.getElementById('player-list').style.display = 'none';
+        document.getElementById('leaderboard').style.display = 'none';
+        this.toggleGameTimer(false);
+        this.toggleScope(false);
+    }
+
+    hideVictoryScreen() {
+        document.getElementById('victory-screen').style.display = 'none';
+        document.getElementById('blocker').style.display = 'none';
+    }
+
+    onContinue(callback) {
+        const btn = document.getElementById('victory-continue-btn');
+        if (btn) {
+            // Remove old listener if any? Not easy without abort controller.
+            // But Game.js usually is singleton?
+            // Actually Game.js creates new UIManager? No, `this.ui = new UIManager`.
+            // If Game reloads, it's fine.
+            btn.onclick = callback; // safer than addEventListener for single callback
+        }
+    }
+
+    onExitGame(callback) {
+        const btn = document.getElementById('victory-exit-btn');
+        if (btn) btn.onclick = callback;
     }
 }

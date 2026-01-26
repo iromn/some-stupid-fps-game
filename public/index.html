@@ -342,6 +342,96 @@
             position: relative;
             z-index: 1;
         }
+
+        /* Victory Screen */
+        #victory-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+            font-family: 'Courier New', monospace;
+            color: #fff;
+            pointer-events: auto;
+        }
+
+        .victory-title {
+            font-size: 80px;
+            font-weight: 900;
+            color: #FFD700;
+            text-shadow: 0 0 20px #FFD700, 4px 4px 0 #000;
+            margin-bottom: 20px;
+            text-transform: uppercase;
+            animation: pulse-gold 2s infinite;
+        }
+
+        @keyframes pulse-gold {
+            0% {
+                transform: scale(1);
+                text-shadow: 0 0 20px #FFD700, 4px 4px 0 #000;
+            }
+
+            50% {
+                transform: scale(1.05);
+                text-shadow: 0 0 40px #FFD700, 4px 4px 0 #000;
+            }
+
+            100% {
+                transform: scale(1);
+                text-shadow: 0 0 20px #FFD700, 4px 4px 0 #000;
+            }
+        }
+
+        .winner-name {
+            font-size: 48px;
+            color: #fff;
+            margin-bottom: 40px;
+            text-shadow: 2px 2px 0 #000;
+        }
+
+        .victory-btn {
+            padding: 15px 40px;
+            font-size: 24px;
+            margin: 10px;
+            cursor: pointer;
+            border: 4px solid #000;
+            font-weight: bold;
+            text-transform: uppercase;
+            font-family: 'Courier New', monospace;
+            box-shadow: 5px 5px 0 #000;
+            transition: transform 0.1s;
+        }
+
+        .victory-btn:hover {
+            transform: translate(-2px, -2px);
+            box-shadow: 7px 7px 0 #000;
+        }
+
+        .victory-btn:active {
+            transform: translate(2px, 2px);
+            box-shadow: 3px 3px 0 #000;
+        }
+
+        #game-timer {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 48px;
+            font-weight: 900;
+            color: #FFF;
+            text-shadow: 3px 3px 0 #000;
+            font-family: 'Courier New', monospace;
+            z-index: 100;
+            display: none;
+            /* Shown in game */
+        }
     </style>
 </head>
 
@@ -671,6 +761,21 @@
     <div id="death-screen">
         <div>YOU DIED</div>
         <div style="font-size: 24px; color: #aaa; margin-top: 20px;">Respawning...</div>
+    </div>
+
+    <!-- Game Timer -->
+    <div id="game-timer">00:00</div>
+
+    <!-- Victory Screen -->
+    <div id="victory-screen">
+        <div class="victory-title">GAME OVER</div>
+        <div id="winner-display" class="winner-name">WINNER: ???</div>
+        <div style="display: flex;">
+            <button id="victory-continue-btn" class="victory-btn"
+                style="background: #7CFC00; color: #000;">CONTINUE</button>
+            <button id="victory-exit-btn" class="victory-btn" style="background: #FF4444; color: #fff;">EXIT
+                GAME</button>
+        </div>
     </div>
 
     <script type="module" src="./src/main.js"></script>

@@ -72,6 +72,19 @@ export class Game {
         this.ui.onLeaveLobby(() => {
             location.reload(); // Simple leave
         });
+
+        this.ui.onContinue(() => {
+            this.gameActive = false;
+            // Fix: Player doesn't have unlockControls
+            if (this.player.controls) this.player.controls.unlock();
+
+            this.ui.hideVictoryScreen();
+            this.ui.showWaitingRoom(this.network.roomCode, this.allPlayers, this.currentHostId, this.network.socket.id);
+        });
+
+        this.ui.onExitGame(() => {
+            location.reload();
+        });
     }
 
     _initNetworkEvents() {
@@ -89,6 +102,7 @@ export class Game {
         });
 
         this.network.on('gameJoined', (data) => {
+            this.network.roomCode = data.roomCode; // Store for later (Continue button)
             this.player.setJoined(true);
             this.player.setPosition(data.x || 0, 2, data.z || 0);
 
@@ -116,10 +130,34 @@ export class Game {
         });
 
         // Phase 8: Game Start
-        this.network.on('gameStart', () => {
+        this.network.on('gameStart', (data) => {
             this.gameActive = true;
+            this.gameEndTime = Date.now() + data.duration;
+
+            // Sync Local Player Position
+            if (data.players && data.players[this.network.socket.id]) {
+                const p = data.players[this.network.socket.id];
+                this.player.setPosition(p.x, p.y, p.z);
+                // Also reset rotation if you want
+            }
+
             this.ui.showGameUI(this.network.roomCode || "----");
-            // Note: Controls are handled by Input/Player. We need to ensure they can only lock if gameActive.
+        });
+
+        this.network.on('gameFinished', (data) => {
+            console.log("Game Ended!", data);
+
+            this.gameActive = false;
+
+            if (this.player.controls) {
+                this.player.controls.unlock();
+            }
+
+            try {
+                this.ui.showVictoryScreen(data.winner, data.leaderboard);
+            } catch (e) {
+                console.error("Victory Screen Error:", e);
+            }
         });
 
 
@@ -362,6 +400,10 @@ export class Game {
         const time = performance.now();
         const delta = Math.min((time - this.lastTime) / 1000, 0.1);
         this.lastTime = time;
+
+        if (this.gameActive && this.gameEndTime) {
+            this.ui.updateGameTimer(this.gameEndTime - Date.now());
+        }
 
         this.level.update(delta, time / 1000); // Pass Time in seconds
         this.player.update(delta);
