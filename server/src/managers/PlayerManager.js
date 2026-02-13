@@ -1,3 +1,5 @@
+const { DEFAULT_WEAPON } = require('../utils/WeaponConfig.js');
+
 class PlayerManager {
     constructor() {
         this.players = {};
@@ -28,7 +30,9 @@ class PlayerManager {
             rotation: 0,
             health: 100,
             kills: 0,
-            isDead: false
+            isDead: false,
+            weaponType: DEFAULT_WEAPON,
+            lastFireTime: 0
         };
         return this.players[id];
     }
@@ -38,6 +42,14 @@ class PlayerManager {
         if (p) {
             p.health = 100;
             p.isDead = false;
+            p.weaponType = DEFAULT_WEAPON;  // Reset to default on respawn
+        }
+    }
+
+    updateWeapon(id, weaponType) {
+        const p = this.players[id];
+        if (p) {
+            p.weaponType = weaponType;
         }
     }
 
@@ -70,6 +82,31 @@ class PlayerManager {
             return p.kills;
         }
         return 0;
+    }
+
+    resetStats(roomCode) {
+        // Safe Angels logic reused
+        const safeAngles = [30, 90, 150, 210, 270, 330];
+
+        Object.values(this.players).forEach(p => {
+            if (p.room === roomCode) {
+                p.kills = 0;
+                p.deaths = 0;
+                p.health = 100;
+                p.isDead = false;
+
+                // Random Respawn
+                const degrees = safeAngles[Math.floor(Math.random() * safeAngles.length)];
+                const baseAngle = degrees * (Math.PI / 180);
+                const angle = baseAngle + (Math.random() * 0.5 - 0.25);
+                const radius = 100 + Math.random() * 20;
+
+                p.x = Math.cos(angle) * radius;
+                p.y = 5;
+                p.z = Math.sin(angle) * radius;
+                p.rotation = 0;
+            }
+        });
     }
 }
 
