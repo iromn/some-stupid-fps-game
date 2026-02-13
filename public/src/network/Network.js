@@ -4,6 +4,10 @@ export class Network {
     constructor() {
         this.socket = io();
         this.events = {};
+
+        this.socket.onAny((event, ...args) => {
+            console.log(`[NETWORK DEBUG] Received: ${event}`, args);
+        });
     }
 
     connect() {

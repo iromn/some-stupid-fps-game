@@ -5,6 +5,8 @@ export class Input {
         this.moveLeft = false;
         this.moveRight = false;
         this.canJump = false;
+        this.interact = false;
+        this.rightClick = false;
 
         this.velocity = { x: 0, y: 0, z: 0 }; // We'll manage velocity vector in Player or here? 
         // In the original code, velocity is updated by input. 
@@ -16,6 +18,30 @@ export class Input {
     _initListeners() {
         document.addEventListener('keydown', (e) => this._onKeyDown(e));
         document.addEventListener('keyup', (e) => this._onKeyUp(e));
+
+        // Mouse Handlers
+        document.addEventListener('mousedown', (e) => {
+            if (e.button === 2) this.rightClick = true;
+        });
+        document.addEventListener('mouseup', (e) => {
+            if (e.button === 2) this.rightClick = false;
+        });
+        document.addEventListener('contextmenu', (e) => e.preventDefault()); // Block context menu
+
+        // Sway Tracker
+        this.mouseX = 0;
+        this.mouseY = 0;
+        document.addEventListener('mousemove', (e) => {
+            this.mouseX += e.movementX || 0;
+            this.mouseY += e.movementY || 0;
+        });
+    }
+
+    getMouseDelta() {
+        const delta = { x: this.mouseX, y: this.mouseY };
+        this.mouseX = 0;
+        this.mouseY = 0;
+        return delta;
     }
 
     _onKeyDown(e) {
@@ -27,6 +53,9 @@ export class Input {
             case 'Space':
                 this.canJump = true;
                 break;
+            case 'KeyF':
+                this.interact = true;
+                break;
         }
     }
 
@@ -36,6 +65,7 @@ export class Input {
             case 'KeyA': this.moveLeft = false; break;
             case 'KeyS': this.moveBackward = false; break;
             case 'KeyD': this.moveRight = false; break;
+            case 'KeyF': this.interact = false; break;
         }
     }
 }
