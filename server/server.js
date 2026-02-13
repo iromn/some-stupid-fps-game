@@ -8,7 +8,6 @@ const io = new Server(server);
 const roomManager = require('./src/managers/RoomManager.js');
 const playerManager = require('./src/managers/PlayerManager.js');
 const combatManager = require('./src/managers/CombatManager.js');
-const weaponManager = require('./src/managers/WeaponManager.js');
 
 app.use(express.static('public'));
 
@@ -22,22 +21,9 @@ io.on('connection', (socket) => {
     if (player) {
       // Success
       const roomPlayers = roomManager.getRoomPlayers(roomCode);
-      const hostId = roomManager.getHost(roomCode);
-
-      socket.emit('gameJoined', { roomCode, assignedColor: player.color, x: player.x, z: player.z, hostId });
-      socket.emit('currentPlayers', roomPlayers);
+      socket.emit('gameJoined', { roomCode, assignedColor: player.color, x: player.x, z: player.z });
       socket.emit('currentPlayers', roomPlayers);
       socket.to(roomCode).emit('newPlayer', player);
-
-      // Send existing pickups state (Fix for visibility on rejoin/late join)
-      const currentPickups = weaponManager.getActivePickups(roomCode);
-      if (currentPickups.length > 0) {
-        socket.emit('pickupsState', currentPickups);
-      }
-
-      // Phase 8: Update Waiting Room (include hostId)
-      io.to(roomCode).emit('roomUpdate', { players: roomManager.getRoomPlayers(roomCode), hostId });
-
       console.log(`User ${name} joined room ${roomCode}`);
     }
   });
@@ -46,42 +32,7 @@ io.on('connection', (socket) => {
     const roomCode = roomManager.leaveRoom(socket);
     if (roomCode) {
       io.to(roomCode).emit('userDisconnected', socket.id);
-
-      // Phase 8: Update Waiting Room UI for others (with new host if changed)
-      const roomPlayers = roomManager.getRoomPlayers(roomCode);
-      const hostId = roomManager.getHost(roomCode);
-      io.to(roomCode).emit('roomUpdate', { players: roomPlayers, hostId });
-
       console.log(`User disconnected from room ${roomCode}`);
-    }
-  });
-
-  // Phase 8: Start Game (Host Only)
-  socket.on('startGame', () => {
-    const p = playerManager.getPlayer(socket.id);
-    if (p) {
-      const result = roomManager.startGame(p.room, socket.id);
-      if (result.success) {
-        // Initialize weapon pickups for this room
-        weaponManager.initializePickups(p.room);
-        const pickups = weaponManager.getActivePickups(p.room);
-        console.log(`[DEBUG] Emitting pickupsState to room ${p.room} with ${pickups.length} items`);
-        io.to(p.room).emit('pickupsState', pickups);
-
-        // Broadcast Countdown
-        const countdownTime = 3000; // 3 seconds
-        const startTime = Date.now() + countdownTime + 500; // +500ms buffer
-
-        io.to(p.room).emit('countdownStart', { startTime });
-
-        // Server-side State Transition
-        setTimeout(() => {
-          roomManager.setPlaying(p.room);
-          io.to(p.room).emit('gameStart'); // Unlock controls
-        }, countdownTime + 500);
-      } else {
-        socket.emit('gameError', result.error);
-      }
     }
   });
 
@@ -94,7 +45,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('shoot', (shootData) => {
-    const events = combatManager.handleShoot(socket.id, shootData.targetId, shootData.weaponType);
+    const events = combatManager.handleShoot(socket.id, shootData.targetId);
 
     if (events) {
       events.forEach(event => {
@@ -136,47 +87,6 @@ io.on('connection', (socket) => {
         id: data.id,
         damage: data.damage,
         attackerId: socket.id
-      });
-    }
-  });
-
-  // Weapon pickup attempt
-  socket.on('pickupWeapon', (data) => {
-    const p = playerManager.getPlayer(socket.id);
-    if (!p) return;
-
-    const result = weaponManager.tryPickup(socket.id, data.pickupId, p.room);
-
-    if (result.success) {
-      // Update player's weapon
-      playerManager.updateWeapon(socket.id, result.weaponType);
-
-      // Notify all players in room
-      io.to(p.room).emit('pickupCollected', {
-        pickupId: result.pickupId,
-        playerId: socket.id,
-        weaponType: result.weaponType
-      });
-
-      // Schedule respawn
-      const respawnTime = weaponManager.getRespawnTime();
-      setTimeout(() => {
-        const respawnedPickup = weaponManager.respawnPickup(result.spawnIndex, p.room);
-        if (respawnedPickup) {
-          io.to(p.room).emit('pickupRespawned', respawnedPickup);
-        }
-      }, respawnTime);
-    }
-  });
-
-  // Weapon switch (player manually switches)
-  socket.on('weaponSwitch', (data) => {
-    const p = playerManager.getPlayer(socket.id);
-    if (p) {
-      playerManager.updateWeapon(socket.id, data.weaponType);
-      socket.to(p.room).emit('playerWeaponChanged', {
-        playerId: socket.id,
-        weaponType: data.weaponType
       });
     }
   });

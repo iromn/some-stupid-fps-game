@@ -1,4 +1,3 @@
-import * as THREE from 'three';
 import { Renderer } from '../graphics/Renderer.js';
 import { Input } from './Input.js';
 import { Audio } from './Audio.js';
@@ -9,22 +8,12 @@ import { Physics } from '../world/Physics.js';
 import { Player } from '../entities/Player.js';
 import { EntityManager } from '../entities/EntityManager.js';
 import { Effects } from '../graphics/Effects.js';
-import { PickupManager } from '../weapons/PickupManager.js';
-import { WEAPONS } from '../weapons/WeaponDefinitions.js';
 
 export class Game {
     constructor() {
         this.renderer = new Renderer();
         this.input = new Input();
         this.audio = new Audio();
-
-        // Preload custom weapon sounds
-        Object.values(WEAPONS).forEach(w => {
-            if (w.soundPath) {
-                this.audio.loadSound(w.id, w.soundPath);
-            }
-        });
-
         this.network = new Network();
         this.ui = new UIManager();
 
@@ -33,7 +22,6 @@ export class Game {
         this.effects = new Effects(this.renderer.scene);
 
         this.entityManager = new EntityManager(this.renderer.scene);
-        this.pickupManager = new PickupManager(this.renderer.scene, this.network);
 
         this.player = new Player(
             this.renderer.camera,
@@ -46,8 +34,8 @@ export class Game {
             this.ui
         );
 
-        // Bind Player Shoot to Effects (includes weapon type)
-        this.player.onShootRequest = (raycaster, weaponPos, dir, weaponType) => this._handleShoot(raycaster, weaponPos, dir, weaponType);
+        // Bind Player Shoot to Effects
+        this.player.onShootRequest = (raycaster, weaponPos, dir) => this._handleShoot(raycaster, weaponPos, dir);
 
         this._initNetworkEvents();
         this._initUIEvents();
@@ -63,14 +51,6 @@ export class Game {
 
         this.ui.onJoinLobby((name, room) => {
             this.network.emit('joinGame', { roomCode: room, name: name });
-        });
-
-        // Phase 8: Waiting Room Events
-        this.ui.onStartGame(() => {
-            this.network.emit('startGame');
-        });
-        this.ui.onLeaveLobby(() => {
-            location.reload(); // Simple leave
         });
     }
 
@@ -91,37 +71,10 @@ export class Game {
         this.network.on('gameJoined', (data) => {
             this.player.setJoined(true);
             this.player.setPosition(data.x || 0, 2, data.z || 0);
-
-            // Phase 8: Show Waiting Room instead of Game UI immediately
-            this.currentHostId = data.hostId; // Store for later
-            this.ui.showWaitingRoom(data.roomCode, {}, data.hostId, this.network.socket.id);
-
+            this.ui.showGameUI(data.roomCode);
             // Initialize local player state for UI lists
             this.allPlayers = {};
-            this.gameActive = false; // Lock controls
         });
-
-        // Phase 8: Room Update
-        this.network.on('roomUpdate', (data) => {
-            if (data.hostId) this.currentHostId = data.hostId; // Update if host changed
-            this.ui.updateWaitingRoom(data.players, data.hostId);
-        });
-
-        // Phase 8: Countdown
-        this.network.on('countdownStart', (data) => {
-            this.ui.showCountdown(data.startTime, () => {
-                // Auto-lock controls when countdown ends so game starts immediately
-                this.player.lockControls();
-            });
-        });
-
-        // Phase 8: Game Start
-        this.network.on('gameStart', () => {
-            this.gameActive = true;
-            this.ui.showGameUI(this.network.roomCode || "----");
-            // Note: Controls are handled by Input/Player. We need to ensure they can only lock if gameActive.
-        });
-
 
         this.network.on('currentPlayers', (players) => {
             this.allPlayers = players; // Store for UI
@@ -135,9 +88,6 @@ export class Game {
             // Update UI Lists
             this.ui.updatePlayerList(this.allPlayers);
             this.ui.updateLeaderboard(this.allPlayers);
-
-            // Phase 8: Also update Waiting Room if we are in it (pass stored hostId)
-            this.ui.updateWaitingRoom(this.allPlayers, this.currentHostId);
         });
 
         this.network.on('newPlayer', (p) => {
@@ -147,7 +97,6 @@ export class Game {
             // Update UI
             this.ui.addPlayerToList(p);
             this.ui.updateLeaderboard(this.allPlayers);
-            this.ui.updateWaitingRoom(this.allPlayers);
         });
 
         this.network.on('playerMoved', (p) => {
@@ -199,27 +148,11 @@ export class Game {
                 if (data.attackerId && data.attackerId !== this.network.id) {
                     this.audio.playHit(); // Being hit sound
                 }
-            } else if (data.attackerId === this.network.id) {
-                // I hit someone
-                this.audio.playHitMarker();
-                this.ui.showHitMarker();
             }
         });
 
         this.network.on('playerKilled', (data) => {
-            // data: { victimId, killerId, killerKills }
-
-            // Update local kill count for leaderboard
-            if (this.allPlayers && this.allPlayers[data.killerId]) {
-                this.allPlayers[data.killerId].kills = data.killerKills;
-                this.ui.updateLeaderboard(this.allPlayers);
-
-                // Show Kill Feed
-                const killerName = data.killerId === this.network.id ? 'YOU' : (this.allPlayers[data.killerId]?.name || 'Unknown');
-                const victimName = data.victimId === this.network.id ? 'YOU' : (this.allPlayers[data.victimId]?.name || 'Unknown');
-                this.ui.showKillFeed(killerName, victimName, (data.killerId === this.network.id || data.victimId === this.network.id));
-            }
-
+            // data: { victimId, killerId }
             if (data.victimId === this.network.id) {
                 document.getElementById('death-screen').style.display = 'flex'; // UI Manager should handle this
                 this.audio.playDie();
@@ -271,55 +204,16 @@ export class Game {
                 this.effects.createBulletTracer(origin, dir);
             }
         });
-
-        // Weapon pickup events
-        this.network.on('pickupsState', (pickups) => {
-            console.log('[DEBUG] Received pickupsState:', pickups);
-            // Initial pickups when game starts
-            this.pickupManager.clear();
-            pickups.forEach(p => this.pickupManager.addPickup(p));
-        });
-
-        this.network.on('pickupCollected', (data) => {
-            // data: { pickupId, playerId, weaponType }
-            this.pickupManager.removePickup(data.pickupId);
-
-            if (data.playerId === this.network.id) {
-                // Local player picked up weapon
-                this.player.switchWeapon(data.weaponType);
-                this.ui.showWeaponPickup(data.weaponType);
-                this.audio.playPickup();
-            } else {
-                // Remote player picked up weapon
-                const remotePlayer = this.entityManager.getPlayer(data.playerId);
-                if (remotePlayer) {
-                    remotePlayer.updateWeapon(data.weaponType);
-                }
-            }
-        });
-
-        this.network.on('pickupRespawned', (pickup) => {
-            this.pickupManager.addPickup(pickup);
-        });
-
-        this.network.on('playerWeaponChanged', (data) => {
-            // data: { playerId, weaponType }
-            const remotePlayer = this.entityManager.getPlayer(data.playerId);
-            if (remotePlayer) {
-                remotePlayer.updateWeapon(data.weaponType);
-            }
-        });
     }
 
-    _handleShoot(raycaster, weaponPos, dir, weaponType) {
+    _handleShoot(raycaster, weaponPos, dir) {
         // Create bullet tracer visual locally
-        this.effects.createBulletTracer(weaponPos, dir, weaponType);
+        this.effects.createBulletTracer(weaponPos, dir);
 
         // Notify server of shot for visuals (Broadcast)
         this.network.emit('playerShoot', {
             origin: weaponPos,
-            direction: dir,
-            weaponType: weaponType
+            direction: dir
         });
 
         // Logic
@@ -347,7 +241,7 @@ export class Game {
             if (targetId) {
                 // Hit a player
                 this.ui.showHitMarker();
-                this.network.emit('shoot', { targetId: targetId, weaponType: weaponType });
+                this.network.emit('shoot', { targetId: targetId });
             } else if (curr.userData.type === 'destructible') {
                 // Hit a destructible wall
                 this.ui.showHitMarker();
@@ -366,33 +260,8 @@ export class Game {
         this.level.update(delta, time / 1000); // Pass Time in seconds
         this.player.update(delta);
 
-        // Update weapon pickups (animations)
-        this.pickupManager.update(delta);
-
-        // Check for nearby weapon pickups (only if game is active and controls locked)
-        // Check for nearby weapon pickups (only if game is active and controls locked)
-        if (this.gameActive && this.player.controls.isLocked) {
-            const playerPos = this.player.controls.getObject().position;
-            const nearbyPickup = this.pickupManager.checkProximity(playerPos, 2.5);
-
-            if (nearbyPickup) {
-                // Show Prompt
-                this.ui.togglePickupPrompt(true, nearbyPickup.weaponType);
-
-                // Check for 'F' Key interaction
-                if (this.input.interact) {
-                    this.player.tryPickupWeapon(nearbyPickup.id);
-                    // Reset interact flag to prevent rapid firing multiple requests
-                    this.input.interact = false;
-                }
-            } else {
-                // Hide Prompt
-                this.ui.togglePickupPrompt(false);
-            }
-        }
-
         // Update Remote Players?
-        // RemotePlayer.update usually takes server data.
+        // RemotePlayer.update usually takes server data. 
         // Do we need to update animation frame-by-frame (idle anim)?
         // Original code: `socket.on('playerMoved')` -> updates position/rotation.
         // But the waddle animation depends on `performance.now()` inside the update function?

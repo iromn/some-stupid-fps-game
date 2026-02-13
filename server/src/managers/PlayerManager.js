@@ -1,5 +1,3 @@
-const { DEFAULT_WEAPON } = require('../utils/WeaponConfig.js');
-
 class PlayerManager {
     constructor() {
         this.players = {};
@@ -30,9 +28,7 @@ class PlayerManager {
             rotation: 0,
             health: 100,
             kills: 0,
-            isDead: false,
-            weaponType: DEFAULT_WEAPON,
-            lastFireTime: 0
+            isDead: false
         };
         return this.players[id];
     }
@@ -42,14 +38,6 @@ class PlayerManager {
         if (p) {
             p.health = 100;
             p.isDead = false;
-            p.weaponType = DEFAULT_WEAPON;  // Reset to default on respawn
-        }
-    }
-
-    updateWeapon(id, weaponType) {
-        const p = this.players[id];
-        if (p) {
-            p.weaponType = weaponType;
         }
     }
 
